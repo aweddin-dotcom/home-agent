@@ -1,0 +1,21 @@
+# Which model does which job. MODEL_PROFILE in .env picks the profile.
+# Code reads model names from here only, so moving to the Mac means
+# switching the profile, not editing code.
+
+profiles:
+  # Windows laptop, RTX 5070 with 8 GB of GPU memory. Small models, for
+  # building and testing the pipeline. Answer quality here says nothing
+  # about the Mac.
+  laptop:
+    chat: qwen3:8b
+    embedding: qwen3-embedding:0.6b
+
+  # Mac Studio, 128 GB. Chat model to be chosen on the Mac using the
+  # question set.
+  mac:
+    chat: null
+    embedding: qwen3-embedding:0.6b
+
+# The embedding model must be the same in every profile. Search results
+# are only comparable between machines if it matches, and changing it
+# means re-embedding all stored email.

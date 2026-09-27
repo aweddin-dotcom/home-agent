@@ -19,7 +19,9 @@ Claude Code follows the same principles as the assistant's own models
 - Create and edit files inside this project folder. This is Claude Code's
   workspace.
 - Run tests and local commands that only affect this project folder.
-- Make git commits, following "What may be committed" below.
+- Make git commits and push them to this project's GitHub repository
+  (github.com/aweddin-dotcom/home-agent), following "What may be committed"
+  below.
 
 ## Requires the user's explicit confirmation
 
@@ -30,8 +32,9 @@ Claude Code follows the same principles as the assistant's own models
   Calendar, etc.), including granting OAuth access. Development and tests
   use the fixtures in tests/fixtures/ unless the user says otherwise.
 - Calendar events that invite anyone else.
-- Publishing or sharing anything outside this machine (git push to GitHub,
-  creating repositories, publishing pages).
+- Publishing or sharing anything else outside this machine (pushing to any
+  other repository, creating repositories, publishing pages).
+- Force-pushing, or anything else that rewrites history on GitHub.
 - Installing software outside this project, or changing system settings.
 - Deleting files that Claude Code did not create in the current session.
 
@@ -50,7 +53,7 @@ rules, config templates, docker-compose, docs, and tests.
   local.
 - Test fixtures must be invented data: made-up names, addresses, and
   messages. Never copy real emails or events into tests/fixtures/.
-- Before each commit, check the staged files. If anything looks like a real
+- Before each commit and each push, check the files involved. If anything looks like a real
   name, email address, phone number, message, or credential, stop and ask.
 
 ## Never

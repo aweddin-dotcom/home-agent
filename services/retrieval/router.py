@@ -10,7 +10,9 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar")
+SOURCES = ("email", "calendar", "general")
+# What to search when the model's reply is unusable: the user's own data.
+DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
 
 SCHEMA = {
@@ -37,6 +39,10 @@ sources: which to search.
   may only be in email, so include email for those. Trips, travel,
   reservations, bookings, and orders are usually confirmed by email:
   include email for those too.
+- "general" alone, only for questions that clearly aren't about the user's
+  own messages, schedule, plans, purchases, people, or accounts: facts,
+  definitions, how-to, conversions, arithmetic ("how many ounces in a
+  cup?"). If it could be about the user's life, use email and calendar.
 
 start_date, end_date: the dates the question is about, as YYYY-MM-DD,
 inclusive. Copy them from the named ranges and date table; don't calculate.
@@ -62,7 +68,7 @@ name, without the word "folder". Otherwise null."""
 
 @dataclass
 class Route:
-    sources: list = field(default_factory=lambda: list(SOURCES))
+    sources: list = field(default_factory=lambda: list(DEFAULT_SOURCES))
     start: date = None
     end: date = None
     keywords: list = field(default_factory=list)
@@ -152,7 +158,9 @@ def validate(raw):
     folder = folder.strip() if isinstance(folder, str) and folder.strip() else None
     if folder and "email" not in sources:
         sources.append("email")
-    return Route(sources=sources or list(SOURCES), start=start, end=end, keywords=keywords, folder=folder)
+    if "general" in sources and len(sources) > 1:
+        sources.remove("general")  # anything personal is answered from the user's data
+    return Route(sources=sources or list(DEFAULT_SOURCES), start=start, end=end, keywords=keywords, folder=folder)
 
 
 def route(question, chat, today):

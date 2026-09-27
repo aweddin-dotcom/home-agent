@@ -106,3 +106,37 @@ def test_version_5_store_gets_mentioned_dates_backfilled(tmp_path):
     assert upgraded.db.execute("pragma user_version").fetchone()[0] == SCHEMA_VERSION
     stored = upgraded.db.execute("select mentioned_dates from emails where id = 'e1'").fetchone()[0]
     assert json.loads(stored) == ["2027-03-22"]
+
+
+def test_many_dated_emails_are_ranked_by_the_question_and_promotions_left_out(gmail_messages, event_fixtures):
+    """Newer mail that happens to mention March mustn't push out the one that answers."""
+    from dataclasses import replace
+
+    from services.embedding.chunker import email_chunks
+    from services.ingestion.gmail_source import parse_message
+
+    from .conftest import FakeEmbedder
+
+    store, index = synced_store(gmail_messages, event_fixtures)
+    base = parse_message(gmail_messages[0], "gmail")
+    noise = [("Spring concert tickets on sale March 20", ["Inbox"]),
+             ("Community garden meeting March 9", ["Inbox"]),
+             ("Library book sale March 13 and March 14", ["Inbox"]),
+             ("Tax documents ready, file by March 15", ["Inbox"]),
+             ("School photo day March 4", ["Inbox"]),
+             ("Huge sale ends March 31", ["Promotions"])]
+    embedder = FakeEmbedder()
+    for n, (text, folders) in enumerate(noise):
+        email = replace(base, id=f"noise-{n}", subject=text, body=text, date="2026-09-26T09:00:00-04:00")
+        store.save_email(email)
+        chunks = email_chunks(email, 1500, 200)
+        index.upsert_email(email, chunks, embedder.embed_documents(chunks))
+        store.update_folders("gmail", {email.id: folders})
+
+    chat = RouteChat({**route(["calendar"], "2027-03-01", "2027-03-31"), "calendar_keywords": []})
+    context = gather("resort reservation arrive depart guests", embedder, index, chat, 3, [], TODAY, TZ, store)
+    ids = [r["email_id"] for r in context.mention_rows]
+    assert ids[0] == "m-spring"  # best match first, though it's the oldest
+    assert len(ids) == 5 and "noise-5" not in ids  # the Promotions one is left out
+    assert "(plans, bookings, deadlines that may not be on the calendar; best matches first, 5 of 6)" in \
+        next(s for s in context.sections if s.startswith("Emails that mention"))

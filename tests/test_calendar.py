@@ -289,6 +289,9 @@ ROUTING_CASES = [
     ("What emails came in yesterday?", "email", ("2026-09-26", "2026-09-26")),
     ("Am I free March 24?", "calendar", ("2027-03-24", "2027-03-24")),
     ("What travel do I have for spring break?", "calendar", ("2027-03-01", "2027-03-31")),
+    ("How many ounces are in a cup?", "general", None),
+    ("What's a good way to keep fresh basil from wilting?", "general", None),
+    ("When did I last hear from the dentist?", "email", None),
 ]
 
 
@@ -302,7 +305,9 @@ def test_real_model_routes_questions(events):
     wrong = {}
     for question, source, expected in ROUTING_CASES:
         r = route(question, chat, TODAY)
-        if source not in r.sources:
+        if source != "general" and "general" in r.sources:
+            wrong[question] = "answered from general knowledge instead of the user's data"
+        elif source not in r.sources:
             wrong[question] = f"sources {r.sources}"
         elif isinstance(expected, tuple) and (str(r.start), str(r.end)) != expected:
             wrong[question] = f"dates {r.start} to {r.end}"
@@ -323,3 +328,28 @@ def test_month_table_runs_forward_across_the_year_end():
     assert "February 2027: 2027-02-01 to 2027-02-28" in months
     assert "March 2027: 2027-03-01 to 2027-03-31" in months
     assert len(months) == 12
+
+
+def test_general_questions_skip_personal_data():
+    import json as _json
+
+    from services.retrieval.ask import answer_prompt, format_sources, gather
+
+    general = validate(_json.dumps({"sources": ["general"], "start_date": None, "end_date": None,
+                                    "calendar_keywords": [], "mail_folder": None}))
+    assert general.sources == ["general"]
+    mixed = validate('{"sources": ["general", "email"]}')
+    assert mixed.sources == ["email"]  # anything possibly personal goes to the user's data
+    assert Route().sources == ["email", "calendar"]
+
+    class GeneralChat:
+        def complete(self, system, user, schema=None, temperature=None):
+            return _json.dumps({"sources": ["general"], "start_date": None, "end_date": None,
+                                "calendar_keywords": [], "mail_folder": None})
+
+    context = gather("how many ounces in a cup?", None, None, GeneralChat(), 3, [], TODAY, TZ, mail=None)
+    assert context.sections == [] and context.hits == []
+    system, user = answer_prompt("how many ounces in a cup?", context, TODAY)
+    assert "from your own knowledge" in system and "can't see live information" in system
+    assert user == "how many ounces in a cup?"
+    assert format_sources(context, TZ) == "General knowledge: your email and calendar weren't searched."

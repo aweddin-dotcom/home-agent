@@ -51,6 +51,23 @@ class EmailIndex:
             return []
         return self.client.query_points(self.collection, query=vector, limit=limit, with_payload=True).points
 
+    def rank_emails(self, vector, email_ids, limit):
+        """Order a given set of emails by how well they match a question:
+        {email_id: best score}, highest first."""
+        if not email_ids or not self.client.collection_exists(self.collection):
+            return {}
+        points = self.client.query_points(
+            self.collection,
+            query=vector,
+            query_filter=qm.Filter(must=[qm.FieldCondition(key="email_id", match=qm.MatchAny(any=list(email_ids)))]),
+            limit=limit * 4,
+            with_payload=["email_id"],
+        ).points
+        best = {}
+        for point in points:  # sorted by score
+            best.setdefault(point.payload["email_id"], point.score)
+        return best
+
     def remove_account(self, account):
         if self.client.collection_exists(self.collection):
             self.client.delete(

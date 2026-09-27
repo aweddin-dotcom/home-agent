@@ -28,10 +28,8 @@ Each section is left out when empty.
 ### Needs your attention
 
 Things you have to act on today or soon.
-- Emails that need your reply (a question to you, a request, a deadline)
-- Deadlines in the next 48 hours found in email (bills, forms, RSVPs)
-- Actions the assistant has prepared and is waiting for you to approve
-- **Max:** 5 items, most urgent first.
+a bill that is due that week that needs to be paid
+an event im registered for has changed schedule or been cancelled
 
 ### Today
 
@@ -71,7 +69,7 @@ Transparency about actions the assistant took without asking.
 <!-- DECIDE: edit this list. It's how the assistant ranks everything. -->
 
 Always needs attention:
-- Direct questions or requests to me from family or my manager
+- direct questions from family members
 - Anything with a deadline, payment due, or appointment change
 - Anything involving money, health, or the kids' school
 

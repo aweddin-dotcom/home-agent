@@ -1,0 +1,29 @@
+# Allowlist: ignore everything, then allow only paths that hold no personal
+# data. See "What may be committed" in rules4claude.txt before adding a path.
+/*
+
+!/.gitignore
+!/.gitattributes
+!/README.md
+!/CLAUDE.md
+!/rules4claude.txt
+!/rules4models.txt
+!/docker-compose.yml
+!/.env.example
+!/services/
+!/config/
+!/tests/
+!/docs/
+
+# Never commit these, even inside allowed folders
+.env
+.env.*
+!.env.example
+*.db
+*.sqlite
+*.sqlite3
+*.log
+__pycache__/
+*.pyc
+.venv/
+.DS_Store

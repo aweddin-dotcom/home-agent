@@ -14,7 +14,7 @@ How to fill this in:
 
 ## 1. Delivery
 
-- **When:** 6:30am, every day. <!-- DECIDE: time; different on weekends? skip weekends? -->
+- **When:** 6:30am, weekdays, 7:00 am weekends. <!-- DECIDE: time; different on weekends? skip weekends? -->
 - **Where:** a phone notification with a one-line summary, linking to the
   full digest in the assistant's web page. <!-- DECIDE: notification + web page, email to yourself, or both -->
 - **Length:** readable in under 2 minutes. At most about 15 items across all

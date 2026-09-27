@@ -24,6 +24,8 @@ def assistant_from_settings():
     from services.embedding.index import EmailIndex
     from services.ingestion.store import Store
 
+    from services.portfolio.client import client_from_settings
+
     from .assistant import Assistant
     from .status import sync_notes
 
@@ -35,6 +37,7 @@ def assistant_from_settings():
         index=EmailIndex(QdrantClient(url=settings.QDRANT_URL), search["collection"]),
         load_events=lambda: Store(settings.STRUCTURED_DB, readonly=True).all_events(),
         open_mail=lambda: Store(settings.STRUCTURED_DB, readonly=True),
+        portfolio=client_from_settings(),
         status_notes=lambda: sync_notes(
             Store(settings.STRUCTURED_DB, readonly=True).sync_statuses(),
             list(settings.accounts()),

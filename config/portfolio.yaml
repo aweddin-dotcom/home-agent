@@ -1,0 +1,23 @@
+# Connection to Portfolio Analyzer (a separate app; see its home_agent_api.py).
+# Read-only: Home Agent only asks it for summaries, digest data, and news.
+
+enabled: true
+# The app listens on 127.0.0.1:5000 on the host; containers reach it here.
+# Override with PORTFOLIO_URL (e.g. when both move to the Mac).
+url: http://host.docker.internal:5000
+timeout_seconds: 30
+
+# Morning digest
+max_watchlist_lines: 5     # closest to their targets; the rest are counted
+max_mover_lines: 3         # biggest moves since each holding's statement
+news_days: 2                # headlines from the last N days
+news_articles_to_summarize: 10
+stale_statement_days: 45    # remind when an account's latest upload is older than this
+
+# Brokerages whose "your statement is ready" emails trigger an upload reminder.
+# Matched against the email's sender and subject, case-insensitively.
+brokers:
+  vanguard: [vanguard]
+  schwab: [schwab]
+  tsp: [tsp, thrift savings]
+  fidelity: [fidelity]

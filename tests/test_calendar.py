@@ -294,6 +294,9 @@ ROUTING_CASES = [
     ("When did I last hear from the dentist?", "email", None),
     ("When will my new desk lamp arrive?", "email", "purchases"),
     ("Has the refund for my returned boots come through?", "email", "purchases"),
+    ("How is my Roth IRA doing?", "portfolio", None),
+    ("Is anything on my watchlist near my buy price?", "portfolio", None),
+    ("Any news about the stocks I own?", "portfolio", "news"),
 ]
 
 
@@ -313,6 +316,9 @@ def test_real_model_routes_questions(events):
             wrong[question] = f"sources {r.sources}"
         elif isinstance(expected, tuple) and (str(r.start), str(r.end)) != expected:
             wrong[question] = f"dates {r.start} to {r.end}"
+        elif expected == "news":
+            if not r.news:
+                wrong[question] = "not flagged as a news question"
         elif expected == "purchases":
             if not r.purchases:
                 wrong[question] = "not flagged as a purchase question"

@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar", "general")
+SOURCES = ("email", "calendar", "portfolio", "general")
 # What to search when the model's reply is unusable: the user's own data.
 DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
@@ -24,8 +24,10 @@ SCHEMA = {
         "calendar_keywords": {"type": "array", "items": {"type": "string"}},
         "mail_folder": {"type": ["string", "null"]},
         "about_purchases": {"type": "boolean"},
+        "portfolio_news": {"type": "boolean"},
     },
-    "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder", "about_purchases"],
+    "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder", "about_purchases",
+                 "portfolio_news"],
 }
 
 SYSTEM_PROMPT = """You route questions about the user's email and calendar. Reply with JSON only.
@@ -40,6 +42,10 @@ sources: which to search.
   may only be in email, so include email for those. Trips, travel,
   reservations, bookings, and orders are usually confirmed by email:
   include email for those too.
+- "portfolio" for the user's investments: accounts, balances, holdings,
+  allocation, stocks or funds they own or watch, retirement plans, and
+  market news about them ("how is my IRA doing?", "any news on my
+  stocks?", "is anything on my watchlist near my buy price?").
 - "general" alone, only for questions that clearly aren't about the user's
   own messages, schedule, plans, purchases, people, or accounts: facts,
   definitions, how-to, conversions, arithmetic ("how many ounces in a
@@ -68,7 +74,10 @@ name, without the word "folder". Otherwise null.
 
 about_purchases: true when the question is about something the user bought
 or paid for: an order, delivery, shipment, package, return, refund,
-receipt, or charge ("when will my new boots arrive?"). Otherwise false."""
+receipt, or charge ("when will my new boots arrive?"). Otherwise false.
+
+portfolio_news: true when the question asks for news or headlines about
+the user's investments or the market. Otherwise false."""
 
 
 @dataclass
@@ -79,6 +88,7 @@ class Route:
     keywords: list = field(default_factory=list)
     folder: str = None
     purchases: bool = False  # about something the user bought: orders, deliveries, receipts
+    news: bool = False  # wants news about their investments
 
 
 def named_ranges(today):
@@ -166,6 +176,9 @@ def validate(raw):
         sources.append("email")
     if "general" in sources and len(sources) > 1:
         sources.remove("general")  # anything personal is answered from the user's data
+    news = data.get("portfolio_news") is True
+    if news and "portfolio" not in sources:
+        sources = [s for s in sources if s != "general"] + ["portfolio"]
     purchases = data.get("about_purchases") is True
     if purchases:
         # Purchases are the user's own data, confirmed by email.
@@ -173,7 +186,7 @@ def validate(raw):
         if "email" not in sources:
             sources.append("email")
     return Route(sources=sources or list(DEFAULT_SOURCES), start=start, end=end, keywords=keywords, folder=folder,
-                 purchases=purchases)
+                 purchases=purchases, news=news)
 
 
 def route(question, chat, today):

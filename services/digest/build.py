@@ -162,7 +162,7 @@ def _due_label(due, today):
     return f"{due:%b} {due.day}: "
 
 
-def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems):
+def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, investments=()):
     today = now.date()
     limits = config["max_items"]
     attention = sorted(
@@ -190,6 +190,8 @@ def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems):
     coming = coming_up_section(events, today, tz, limits["coming_up"])
     if coming:
         sections.append(("Coming up", coming))
+    if investments:
+        sections.append(("Investments", list(investments)))
     if worth:
         lines = [item(s, label=False) for s in worth[: limits["worth_knowing"]]]
         if len(worth) > limits["worth_knowing"]:
@@ -211,8 +213,10 @@ def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems):
     return "\n\n".join(parts)
 
 
-def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=print):
+def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=print, portfolio=None,
+          portfolio_config=None):
     """Sort the mail received since the previous digest, compose, and save.
+    `portfolio` (a Portfolio Analyzer client) adds the Investments section.
     Returns the digest text."""
     previous = store.latest_digest()
     if previous and previous["day"] == now.date().isoformat():
@@ -237,7 +241,19 @@ def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=p
     statuses = store.sync_statuses()
     problems = [f"Sync problem ({a}): {s['detail']}" for a, s in statuses.items()
                 if not s["ok"] and (enabled_accounts is None or a in enabled_accounts)]
-    text = compose(now, sorted_emails, set_aside, store.all_events(), tz, config, problems)
+
+    investments = []
+    if portfolio is not None:
+        from services.portfolio.digest import investment_lines
+
+        pconfig = portfolio_config or {}
+        # "Statement ready" emails over the reminder window, so a reminder
+        # repeats until the statement is uploaded.
+        recent = store.emails_since(now - timedelta(days=pconfig.get("stale_statement_days", 45)))
+        investments, note = investment_lines(portfolio, chat, recent, now.date(), pconfig, log)
+        if note:
+            problems.append(note)
+    text = compose(now, sorted_emails, set_aside, store.all_events(), tz, config, problems, investments)
     store.save_digest(now.date(), text, since.astimezone(timezone.utc).isoformat(),
                       created_at=now.astimezone(timezone.utc).isoformat())
     return text
@@ -259,8 +275,10 @@ def build_from_settings(store, log=print):
     model = settings.models()
     chat = OllamaChat(settings.OLLAMA_BASE_URL, model["chat"], num_ctx=model["chat_context_tokens"])
     tz = settings.TIMEZONE
+    from services.portfolio.client import client_from_settings
+
     return build(store, chat, settings.digest(), datetime.now(tz), tz, settings.profile_text(),
-                 list(settings.accounts()), log)
+                 list(settings.accounts()), log, client_from_settings(), settings.load_config("portfolio.yaml"))
 
 
 def maybe_build(log=print):

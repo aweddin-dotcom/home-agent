@@ -73,6 +73,7 @@ class Assistant:
     today: object = None  # fixed date for tests; None means the real today
     open_mail: object = None  # callable returning a read-only Store, for folder names and listings
     status_notes: object = None  # callable returning sync-health lines for the footer
+    portfolio: object = None  # Portfolio Analyzer client, for investment questions
 
     def condense(self, question, history):
         if not history:
@@ -106,7 +107,8 @@ class Assistant:
         today = self.today or datetime.now(self.tz).date()
         mail = self.open_mail() if self.open_mail else None
         context = gather(
-            standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz, mail
+            standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz, mail,
+            self.portfolio,
         )
         yield from self.chat.stream(*answer_prompt(standalone, context, today))
 

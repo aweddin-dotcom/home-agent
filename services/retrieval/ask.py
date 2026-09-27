@@ -17,7 +17,7 @@ from .router import route
 from .search import build_from_settings, search
 from .structured_query import describe_time, format_calendar, lookup
 
-SYSTEM_PROMPT = """You answer the user's questions about their email and calendar.
+SYSTEM_PROMPT = """You answer the user's questions about their email, calendar, and investments.
 Today is {today}.
 
 - Use only the calendar events and emails provided. If they don't contain
@@ -40,6 +40,10 @@ Today is {today}.
   For "most recent", "latest", "last", or "next" questions, compare the
   dates explicitly, and say which date you went by: when the email arrived,
   or the date of the trip, reservation, or event it describes.
+- Investment figures come from the user's Portfolio Analyzer app. Say that
+  balances are as of each account's latest statement. Give information,
+  not advice; for deeper analysis, suggest the Portfolio Analyzer's AI
+  advisor. Cite news like [N1].
 - For purchases, the order emails listed like [O1] are what the user
   actually bought. A store's marketing about similar products is not a
   purchase.
@@ -73,6 +77,8 @@ class Context:
     dated_rows: list = field(default_factory=list)
     mention_rows: list = field(default_factory=list)
     order_rows: list = field(default_factory=list)
+    portfolio: str = ""  # "used", "unavailable", or "" when not asked
+    news_rows: list = field(default_factory=list)
 
 
 @dataclass
@@ -195,12 +201,55 @@ def calendar_horizon(today):
     return today + timedelta(days=settings.retrieval()["sync"]["calendar_days_ahead"])
 
 
-def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None):
+NEWS_DAYS = 3
+NEWS_LIMIT = 12
+
+
+def format_news(articles):
+    lines = [f"Recent news about the user's holdings and watchlist (newest first, {len(articles)}):"]
+    for n, a in enumerate(articles, 1):
+        tickers = ", ".join(a.get("tickers") or [])
+        summary = _flat(a.get("summary"), 300)
+        lines.append(f"[N{n}] {(a.get('published') or '')[:10]}  ({tickers})  {a.get('title', '')}  "
+                     f"— {a.get('publisher', '')}" + (f"\n     {summary}" if summary else ""))
+    return "\n".join(lines)
+
+
+def add_portfolio(context, portfolio, with_news):
+    """The user's investments from Portfolio Analyzer (a separate app it owns)."""
+    from services.portfolio.client import PortfolioUnavailable
+
+    if portfolio is None:
+        context.portfolio = "unavailable"
+        context.sections.append("Investment portfolio: not connected (config/portfolio.yaml).")
+        return
+    try:
+        summary = portfolio.summary()
+        context.sections.append(
+            "Investment portfolio, from the user's Portfolio Analyzer app. Balances are as of each "
+            "account's latest uploaded statement; prices are as shown:\n" + summary["text"]
+        )
+        context.portfolio = "used"
+        if with_news:
+            articles = portfolio.news(days=NEWS_DAYS).get("articles", [])  # newest first
+            # Holdings before watchlist-only news; stable, so still newest first within each.
+            articles = sorted(articles, key=lambda a: not a.get("about_holdings"))[:NEWS_LIMIT]
+            context.news_rows = articles
+            context.sections.append(format_news(articles) if articles else "No recent news for the user's tickers.")
+    except PortfolioUnavailable:
+        context.portfolio = "unavailable"
+        context.sections.append("Investment portfolio: the Portfolio Analyzer app isn't running or didn't "
+                                "answer, so investment data isn't available right now.")
+
+
+def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None, portfolio=None):
     """`mail` (a Store) adds folder names, folder and date listings; optional."""
     chosen = route(question, chat, today)
     context = Context(chosen)
     if chosen.sources == ["general"]:
         return context  # answered from the model's own knowledge; nothing to look up
+    if "portfolio" in chosen.sources:
+        add_portfolio(context, portfolio, chosen.news)
     if mail is not None and chosen.purchases:
         # The user's actual orders, so a store's marketing about the same
         # things can't stand in for them.
@@ -304,6 +353,13 @@ def format_sources(context, tz):
             f"  [E{n}] {describe_time(e, tz)}  {e.summary}  ({e.account})"
             for n, e in enumerate(context.calendar.events, 1)
         )
+    if context.portfolio:
+        lines.append("Portfolio Analyzer: " + ("summary of accounts and holdings" if context.portfolio == "used"
+                                               else "not available"))
+    if context.news_rows:
+        lines.append("News:")
+        lines.extend(f"  [N{n}] {(a.get('published') or '')[:10]}  {a.get('title', '')}  ({a.get('publisher', '')})"
+                     for n, a in enumerate(context.news_rows, 1))
     if context.order_rows:
         lines.append("Orders:")
         lines.extend(
@@ -355,7 +411,10 @@ def main():
 
     question = " ".join(sys.argv[1:])
     top_k = settings.retrieval()["search"]["top_k"]
-    context = gather(question, embedder, index, chat, top_k, store.all_events(), today, tz, store)
+    from services.portfolio.client import client_from_settings
+
+    context = gather(question, embedder, index, chat, top_k, store.all_events(), today, tz, store,
+                     client_from_settings())
     print(chat.complete(*answer_prompt(question, context, today)))
     print()
     print(format_sources(context, tz))

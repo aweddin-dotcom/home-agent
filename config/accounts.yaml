@@ -3,13 +3,18 @@
 # when you grant access, e.g.
 #   python scripts/google_auth.py grant gmail ingestion
 #
-# provider: google (Gmail + Google Calendar). More providers to come.
+# provider: google (Gmail + Google Calendar; grant with scripts/google_auth.py)
+#           microsoft (Outlook/Hotmail mail + calendar; scripts/microsoft_auth.py)
 # enabled: false stops syncing it; its local copy stays until you run
 #   python -m services.ingestion.sync --remove LABEL
 
 accounts:
   gmail:
     provider: google
+    enabled: true
+
+  outlook:
+    provider: microsoft
     enabled: true
 
   # Throwaway account for trying out new actions before they touch real mail.

@@ -75,8 +75,14 @@ On the Mac:
 | Gmail organize token (`gmail.modify`) | Mail tool (labels, folders, drafts) | `data/tokens/<account>/mail/` | `python scripts/google_auth.py grant ACCOUNT mail` |
 | Gmail send token (`gmail.send`) | Send tool (after approval only) | `data/tokens/<account>/send/` | `python scripts/google_auth.py grant ACCOUNT send` |
 | Calendar token (`calendar.events`) | Calendar tool | `data/tokens/<account>/calendar/` | `python scripts/google_auth.py grant ACCOUNT calendar` |
+| Microsoft app (client) ID | Microsoft tools (to request approvals); not a secret, but kept with them | Credential store | Microsoft Entra admin center → App registrations → Home Agent → Overview |
+| Outlook sync approval (`Mail.Read`, `Calendars.Read`) | Email and calendar sync | `data/tokens/<account>/ingestion/` | `python scripts/microsoft_auth.py grant ACCOUNT ingestion` |
+| Outlook organize / send / calendar approvals (`Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`) | Mail, send, and calendar tools (not built yet) | `data/tokens/<account>/<tool>/` | `python scripts/microsoft_auth.py grant ACCOUNT TOOL` |
 | Notification token (ntfy or Pushover) | Delivery service | Credential store | Regenerate in the notification service's settings |
 | Approval signing key | Confirmation service; tools that verify approvals | Credential store | Generate a new random key; pending approvals become invalid |
+
+To revoke all Microsoft access at once: account.microsoft.com → Privacy →
+"Apps and services" → remove Home Agent.
 
 To revoke all Google access at once: Google Account → Security →
 "Third-party apps with account access" → remove the app.
@@ -109,6 +115,19 @@ the Mac itself or the internal Docker network, never from the LAN.
   into one token.
 - `gmail.modify` also allows moving mail to Trash. The mail tool must refuse
   this in code, because the rules forbid deleting email.
+
+## Microsoft setup notes
+
+- The app is registered in the Microsoft Entra admin center for
+  **personal Microsoft accounts only**, as a public client ("Allow public
+  client flows" on). It has no client secret; only its app (client) ID is
+  stored.
+- Approvals use the device-code sign-in: `microsoft_auth.py grant` prints a
+  code to enter at microsoft.com/devicelogin. This also works over SSH.
+- Approvals renew as they're used and lapse after about 90 days without
+  use; sync reports which `grant` command to run.
+- Same permission split as Google. `Mail.ReadWrite` also allows deleting,
+  so the mail tool must refuse deletes in code.
 
 ## Before the Mac arrives
 

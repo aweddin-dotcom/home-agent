@@ -7,3 +7,4 @@ qdrant-client
 tzdata
 fastapi
 uvicorn
+msal

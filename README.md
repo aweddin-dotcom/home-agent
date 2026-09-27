@@ -37,6 +37,7 @@ containers are running:
 | Command | What it does |
 |---|---|
 | `python scripts/google_auth.py grant ACCOUNT ingestion` | One-time per Google account: approve read-only Gmail and Calendar access in the browser. ACCOUNT is a label from `config/accounts.yaml`. |
+| `python scripts/microsoft_auth.py grant ACCOUNT ingestion` | Same, for an Outlook/Hotmail account: prints a code to enter at microsoft.com/devicelogin. |
 | `python -m services.ingestion.sync` | Fetch new email and calendar events from every enabled account, clean, and index them. Prints counts only. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs. |
 | `python -m services.retrieval.search "question"` | List the emails that best match a question |
 | `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |

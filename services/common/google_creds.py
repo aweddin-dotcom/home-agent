@@ -4,7 +4,7 @@ Each tool gets its own token with only the permissions it needs
 (docs/secrets.md). Tokens are granted by scripts/google_auth.py.
 """
 
-import os
+from .tokens import ExpiredToken, MissingToken, save_private  # noqa: F401 (re-exported)
 
 GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify"
@@ -22,23 +22,6 @@ TOOLS = {
 
 def token_path(tokens_dir, account, tool):
     return tokens_dir / account / tool / "token.json"
-
-
-def save_private(path, text):
-    """Write a file readable only by its owner (on macOS and Linux)."""
-    path.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    path.unlink(missing_ok=True)
-    fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
-    with os.fdopen(fd, "w", encoding="utf-8") as f:
-        f.write(text)
-
-
-class MissingToken(Exception):
-    pass
-
-
-class ExpiredToken(MissingToken):
-    pass
 
 
 def load_credentials(tokens_dir, account, tool):

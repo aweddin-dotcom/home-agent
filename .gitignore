@@ -14,6 +14,9 @@
 !/config/
 !/tests/
 !/docs/
+!/.claude/
+/.claude/*
+!/.claude/settings.json
 
 # Never commit these, even inside allowed folders
 .env

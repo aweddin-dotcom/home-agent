@@ -7,6 +7,12 @@ Claude Code follows the same principles as the assistant's own models
 
 - Read, search, and explore files in this project, and look up documentation.
 - Never print, log, or copy the contents of .env.secrets or any credential.
+- Don't read data/, logs/, secrets/, or .env.secrets, by any means. They hold
+  personal data or credentials, and anything Claude Code reads is sent to
+  Anthropic. .claude/settings.json blocks the Read tool for these paths;
+  this rule covers everything else (shell commands, scripts). Debug with
+  fixtures, or ask the user to share a specific redacted excerpt.
+- See docs/secrets.md for how credentials are stored and used.
 
 ## Allowed without asking
 

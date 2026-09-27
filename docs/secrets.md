@@ -97,9 +97,13 @@ the Mac itself or the internal Docker network, never from the LAN.
   is `TOOLS` in that script.
 
 - Set the OAuth app's publishing status to **In production** and skip
-  verification. The user sees an "unverified app" warning when granting
-  access, which is fine for personal use. Apps left in **Testing** have
-  their refresh tokens expire after 7 days.
+  verification. Google exempts personal-use apps from verification; the
+  user sees an "unverified app" warning when granting access, and the app
+  is limited to 100 users. Leave the logo, homepage, and privacy-policy
+  fields empty: a logo triggers brand verification, which asks for them.
+- The alternative is staying in **Testing** with each account added as a
+  test user. Approvals then expire after 7 days; sync reports this and
+  says which `grant` command to run.
 - Request each token in its own auth flow with only its scope. Do not use
   incremental authorization (`include_granted_scopes`), which merges scopes
   into one token.

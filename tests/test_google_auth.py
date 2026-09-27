@@ -81,3 +81,23 @@ def test_grant_refuses_unknown_or_non_google_accounts(fake_env, monkeypatch):
     for account in ("nope", "icloud"):
         with pytest.raises(SystemExit):
             google_auth.main(["grant", account, "ingestion"])
+
+
+def test_expired_approval_explains_how_to_regrant(tmp_path, monkeypatch):
+    from google.auth.exceptions import RefreshError
+
+    from services.common import google_creds
+
+    path = google_creds.token_path(tmp_path, "gmail", "ingestion")
+    path.parent.mkdir(parents=True)
+    path.write_text(
+        '{"token": "old", "refresh_token": "r", "client_id": "c", "client_secret": "s",'
+        ' "token_uri": "https://oauth2.googleapis.com/token", "expiry": "2020-01-01T00:00:00Z"}'
+    )
+
+    def refuse(self, request):
+        raise RefreshError("invalid_grant: Token has been expired or revoked.")
+
+    monkeypatch.setattr("google.oauth2.credentials.Credentials.refresh", refuse)
+    with pytest.raises(google_creds.ExpiredToken, match="grant gmail ingestion"):
+        google_creds.load_credentials(tmp_path, "gmail", "ingestion")

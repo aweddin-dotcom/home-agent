@@ -37,6 +37,10 @@ class MissingToken(Exception):
     pass
 
 
+class ExpiredToken(MissingToken):
+    pass
+
+
 def load_credentials(tokens_dir, account, tool):
     """Load an account's token for a tool, refreshing and re-saving it if expired."""
     from google.auth.transport.requests import Request
@@ -50,6 +54,16 @@ def load_credentials(tokens_dir, account, tool):
         )
     creds = Credentials.from_authorized_user_file(str(path), TOOLS[tool])
     if not creds.valid:
-        creds.refresh(Request())
+        from google.auth.exceptions import RefreshError
+
+        try:
+            creds.refresh(Request())
+        except RefreshError as error:
+            # Typical causes: the Google app is in Testing mode (approvals
+            # expire after 7 days), or access was revoked in the Google account.
+            raise ExpiredToken(
+                f"The '{tool}' approval for account '{account}' has expired or been revoked. "
+                f"Run: python scripts/google_auth.py grant {account} {tool}"
+            ) from error
         save_private(path, creds.to_json())
     return creds

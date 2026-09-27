@@ -19,8 +19,14 @@ Model names live in config/models.yaml, one profile per machine, chosen by
 1. Install Ollama and pull the models for your profile, e.g. on the laptop:
    `ollama pull qwen3:8b` and `ollama pull qwen3-embedding:0.6b`
 2. `cp .env.example .env` and set `MODEL_PROFILE` (`laptop` or `mac`).
-3. `docker compose up -d`
-4. Open WebUI: http://127.0.0.1:3000 (the first account created is the admin).
+3. Python tools: `python -m venv .venv`, then install with
+   `.venv/Scripts/pip install -r requirements-dev.txt` (Windows) or
+   `.venv/bin/pip install -r requirements-dev.txt` (Mac).
+4. Secrets, as needed: `python scripts/secrets_cli.py status` and `set NAME`
+   (see docs/secrets.md). Run with the venv's python.
+5. Start everything: `python scripts/up.py` (exports secrets, then
+   `docker compose up -d`). Tests: `python -m pytest`.
+6. Open WebUI: http://127.0.0.1:3000 (the first account created is the admin).
    Qdrant: http://127.0.0.1:6333/dashboard
 
 ## Moving to the Mac

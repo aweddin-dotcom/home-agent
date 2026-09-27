@@ -31,10 +31,18 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
-  # The assistant's own services go here once built:
-  # agent-api:
-  #   build: ./services/agent
-  #   ports:
-  #     - "127.0.0.1:8000:8000"
+  # The assistant's own services go here once built. A service lists only
+  # the secrets it needs; each appears inside it at /run/secrets/NAME.
+  # email-sync:
+  #   build: ./services/ingestion
+  #   secrets: [google_client]
+  #   volumes:
+  #     - ./data/tokens/ingestion:/tokens
   #   depends_on:
   #     - qdrant
+
+# Files are written by `python scripts/secrets_cli.py export` (run by
+# scripts/up.py) from the OS credential store. Uncomment as services need them.
+# secrets:
+#   google_client:
+#     file: ./secrets/google_client

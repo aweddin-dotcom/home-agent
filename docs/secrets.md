@@ -28,33 +28,55 @@ the credentials stay protected.
 
 | Kind | Where it lives | Why |
 |---|---|---|
-| Fixed secrets (client secret, notifier token, signing key) | macOS login Keychain on the Mac Studio | Encrypted, built in, readable by scripts |
+| Fixed secrets (client secret, notifier token, signing key) | The OS credential store: macOS login Keychain on the Mac Studio, Windows Credential Manager on the laptop | Encrypted, built in, readable by scripts through Python's `keyring` library on both |
 | Runtime copies of fixed secrets | `secrets/` (generated at startup, owner-only permissions, never committed) | Mounted into containers as Docker secrets at `/run/secrets/...`, not environment variables |
 | OAuth tokens (Google) | `data/tokens/<tool>/`, a volume mounted only into the container that uses it | Google refreshes tokens, so the tool must be able to write them |
 | Everything on disk | FileVault-encrypted disk | Protects data if the Mac is stolen |
 
 Edge's password manager is for website logins only; nothing here uses it.
 
+### Managing secrets
+
+The names of all secrets are listed in `config/secrets.yaml` (never the
+values). The user manages values with `scripts/secrets_cli.py`, in their own
+terminal:
+
+| Command | What it does |
+|---|---|
+| `python scripts/secrets_cli.py status` | Shows which secrets are set or missing. Never shows values. |
+| `python scripts/secrets_cli.py set NAME` | Prompts twice for the value, hidden, and stores it. |
+| `python scripts/secrets_cli.py set NAME --from-file PATH` | Stores the contents of a file (e.g. Google's client JSON). Delete the file afterwards. |
+| `python scripts/secrets_cli.py remove NAME` | Deletes it from the store and from `secrets/`. |
+| `python scripts/secrets_cli.py export` | Writes every set secret to `secrets/NAME` for Docker. |
+
+The tool deliberately has no way to pass a value as a command argument, so
+values never land in shell history, logs, or a Claude Code transcript.
+Claude Code never runs `set`; the user does.
+
 ### Startup sequence
+
+`python scripts/up.py` exports the secrets and runs `docker compose up -d`.
+Each container receives only the secrets listed for it in
+docker-compose.yml, as files at `/run/secrets/NAME`. Service code reads
+secrets only from there, so it works the same on either machine.
+
+On the Mac:
 
 1. The Mac boots; the user unlocks FileVault (at the Mac or over SSH on the
    local network), which logs in and unlocks the login Keychain.
-2. A login script reads the fixed secrets from the Keychain and writes them
-   to `secrets/`.
-3. The script runs `docker compose up`. Each container receives only the
-   secrets listed for it in docker-compose.yml.
+2. A login item runs `scripts/up.py`.
 
 ## Inventory
 
 | Secret | Used by | Stored in | How to regenerate |
 |---|---|---|---|
-| Google OAuth client ID + secret | All Google tools (to request tokens) | Keychain | Google Cloud Console → APIs & Services → Credentials → add a new client secret, delete the old one |
+| Google OAuth client ID + secret | All Google tools (to request tokens) | Credential store | Google Cloud Console → APIs & Services → Credentials → add a new client secret, delete the old one |
 | Gmail read token (`gmail.readonly`) | Email sync | `data/tokens/ingestion/` | Re-run the auth flow for the sync service |
 | Gmail organize token (`gmail.modify`) | Mail tool (labels, folders, drafts) | `data/tokens/mail/` | Re-run the auth flow for the mail tool |
 | Gmail send token (`gmail.send`) | Send tool (after approval only) | `data/tokens/send/` | Re-run the auth flow for the send tool |
 | Calendar token (`calendar.events`) | Calendar tool | `data/tokens/calendar/` | Re-run the auth flow for the calendar tool |
-| Notification token (ntfy or Pushover) | Delivery service | Keychain | Regenerate in the notification service's settings |
-| Approval signing key | Confirmation service; tools that verify approvals | Keychain | Generate a new random key; pending approvals become invalid |
+| Notification token (ntfy or Pushover) | Delivery service | Credential store | Regenerate in the notification service's settings |
+| Approval signing key | Confirmation service; tools that verify approvals | Credential store | Generate a new random key; pending approvals become invalid |
 
 To revoke all Google access at once: Google Account → Security →
 "Third-party apps with account access" → remove the app.

@@ -3,7 +3,7 @@ formatted for the chat model, with overlaps worked out in code rather than
 left to the model."""
 
 from dataclasses import dataclass, field
-from datetime import date, datetime, time, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 DEFAULT_DAYS_AHEAD = 14
 MAX_KEYWORD_SPAN_EVENTS = 5
@@ -56,13 +56,23 @@ def find_overlaps(events, tz):
     ]
 
 
+def _instant(start):
+    """A start time comparable across providers: the same moment written in
+    different zones ("15:00-04:00" vs "19:00Z") compares equal."""
+    try:
+        moment = datetime.fromisoformat(start.replace("Z", "+00:00"))
+    except ValueError:
+        return start
+    return moment.astimezone(timezone.utc).isoformat() if moment.tzinfo else start
+
+
 def merge_duplicates(events):
     """One copy of each event that appears in several calendars or accounts (an
     invite accepted in two places). Copies share an iCalUID; instances of a
     recurring event share it too, so the start time is part of the key."""
     seen, merged = set(), []
     for event in events:
-        key = (event.ical_uid, event.start) if event.ical_uid else (event.account, event.calendar_id, event.id)
+        key = (event.ical_uid, _instant(event.start)) if event.ical_uid else (event.account, event.calendar_id, event.id)
         if key not in seen:
             seen.add(key)
             merged.append(event)

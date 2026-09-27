@@ -87,7 +87,40 @@ class MicrosoftSource:
         return fetch_folder_map(self.client, datetime.now(timezone.utc) - timedelta(days=days), max_emails)
 
 
-PROVIDERS = {"google": GoogleSource, "microsoft": MicrosoftSource}
+class ICloudSource:
+    """iCloud calendars over CalDAV, with the Apple ID and app-specific password
+    from the credential store. Calendar only; iCloud mail isn't synced."""
+
+    has_email = False
+    has_calendar = True
+
+    def __init__(self, account, calendars, tz, skip_calendars=()):
+        self.account = account
+        self.calendars = calendars
+        self.tz = tz
+        self.skip_calendars = skip_calendars
+
+    @classmethod
+    def connect(cls, account, config, tokens_dir):
+        from services.common import settings
+        from services.common.secrets import get_secret
+
+        from .icloud_source import ICLOUD_CALDAV_URL, connect_calendars
+
+        calendars = connect_calendars(
+            get_secret(config.get("apple_id_secret", "icloud_apple_id")),
+            get_secret(config.get("password_secret", "icloud_app_password")),
+            config.get("url", ICLOUD_CALDAV_URL),
+        )
+        return cls(account, calendars, settings.TIMEZONE, config.get("skip_calendars") or ())
+
+    def events(self, now, days_back, days_ahead):
+        from .icloud_source import fetch_events
+
+        return fetch_events(self.calendars, self.account, now, days_back, days_ahead, self.tz, self.skip_calendars)
+
+
+PROVIDERS = {"google": GoogleSource, "microsoft": MicrosoftSource, "icloud": ICloudSource}
 
 
 def connect(account, config, tokens_dir):

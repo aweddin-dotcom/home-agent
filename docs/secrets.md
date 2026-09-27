@@ -78,6 +78,8 @@ On the Mac:
 | Microsoft app (client) ID | Microsoft tools (to request approvals); not a secret, but kept with them | Credential store | Microsoft Entra admin center → App registrations → Home Agent → Overview |
 | Outlook sync approval (`Mail.Read`, `Calendars.Read`) | Email and calendar sync | `data/tokens/<account>/ingestion/` | `python scripts/microsoft_auth.py grant ACCOUNT ingestion` |
 | Outlook organize / send / calendar approvals (`Mail.ReadWrite`, `Mail.Send`, `Calendars.ReadWrite`) | Mail, send, and calendar tools (not built yet) | `data/tokens/<account>/<tool>/` | `python scripts/microsoft_auth.py grant ACCOUNT TOOL` |
+| Apple ID | iCloud calendar sync | Credential store (`icloud_apple_id`) | Your Apple ID email |
+| iCloud app-specific password | iCloud calendar sync | Credential store (`icloud_app_password`) | appleid.apple.com → Sign-In and Security → App-Specific Passwords → create a new one, revoke the old |
 | Notification token (ntfy or Pushover) | Delivery service | Credential store | Regenerate in the notification service's settings |
 | Approval signing key | Confirmation service; tools that verify approvals | Credential store | Generate a new random key; pending approvals become invalid |
 
@@ -128,6 +130,19 @@ the Mac itself or the internal Docker network, never from the LAN.
   use; sync reports which `grant` command to run.
 - Same permission split as Google. `Mail.ReadWrite` also allows deleting,
   so the mail tool must refuse deletes in code.
+
+## iCloud setup notes
+
+- iCloud has no approval-based API; calendars are read over CalDAV with the
+  Apple ID and an **app-specific password** (requires two-factor
+  authentication on the Apple ID).
+- An app-specific password can't be limited to reading calendars, or even
+  to calendars. Read-only is enforced by our code only: the iCloud source
+  only ever searches and reads. Keep it only in the credential store.
+- Revoke it at appleid.apple.com → Sign-In and Security → App-Specific
+  Passwords. Changing the Apple ID password also revokes all of them.
+- Recurring events are expanded locally from each event's iCalendar data,
+  so moved and cancelled occurrences come out right.
 
 ## Before the Mac arrives
 

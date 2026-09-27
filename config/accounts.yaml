@@ -5,6 +5,9 @@
 #
 # provider: google (Gmail + Google Calendar; grant with scripts/google_auth.py)
 #           microsoft (Outlook/Hotmail mail + calendar; scripts/microsoft_auth.py)
+#           icloud (iCloud calendars over CalDAV; Apple ID and app-specific
+#             password stored with scripts/secrets_cli.py)
+# skip_calendars: calendar names not to sync, e.g. [Birthdays] (icloud)
 # enabled: false stops syncing it; its local copy stays until you run
 #   python -m services.ingestion.sync --remove LABEL
 
@@ -16,6 +19,11 @@ accounts:
   outlook:
     provider: microsoft
     enabled: true
+
+  icloud:
+    provider: icloud
+    enabled: true
+    skip_calendars: []
 
   # Throwaway account for trying out new actions before they touch real mail.
   gmail-test:

@@ -8,3 +8,6 @@ tzdata
 fastapi
 uvicorn
 msal
+caldav
+icalendar
+recurring-ical-events

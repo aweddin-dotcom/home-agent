@@ -16,6 +16,7 @@ class CalendarResult:
     end: date
     note: str = ""
     overlaps: list = field(default_factory=list)  # (index_a, index_b) into events
+    next_event: object = None  # first event after the range, when the range is empty
 
 
 def interval(event, tz):
@@ -91,7 +92,11 @@ def lookup(route, events, today, tz):
         start, end = today, today + timedelta(days=DEFAULT_DAYS_AHEAD)
         selected = in_range(events, start, end, tz)
         note = "No dates were given, so this shows the next two weeks."
-    return CalendarResult(selected, start, end, note, find_overlaps(selected, tz))
+    next_event = None
+    if not selected:
+        after = datetime.combine(end + timedelta(days=1), time.min, tz)
+        next_event = next((e for e in events if interval(e, tz)[0] >= after), None)
+    return CalendarResult(selected, start, end, note, find_overlaps(selected, tz), next_event)
 
 
 def _clock(moment):
@@ -129,6 +134,9 @@ def format_calendar(result, tz):
         lines.append(result.note)
     if not result.events:
         lines.append("No events.")
+        if result.next_event:
+            e = result.next_event
+            lines.append(f"The next event after these dates: {describe_time(e, tz)}  {e.summary or '(no title)'}")
     for n, event in enumerate(result.events, 1):
         line = f"[E{n}] {describe_time(event, tz)}  {event.summary or '(no title)'}"
         if event.location:

@@ -46,7 +46,7 @@ def d(text):
 
 def test_named_ranges_on_a_sunday():
     r = named_ranges(TODAY)
-    assert r["this week (rest of it)"] == (d("2026-09-27"), d("2026-09-27"))
+    assert r["this week"] == (d("2026-09-27"), d("2026-10-04"))  # the week ahead, not just today
     assert r["next week"] == (d("2026-09-28"), d("2026-10-04"))
     assert r["last week"] == (d("2026-09-14"), d("2026-09-20"))
     assert r["this weekend"] == (d("2026-09-27"), d("2026-09-27"))
@@ -54,8 +54,14 @@ def test_named_ranges_on_a_sunday():
 
 def test_named_ranges_on_a_wednesday():
     r = named_ranges(d("2026-09-30"))
-    assert r["this week (rest of it)"] == (d("2026-09-30"), d("2026-10-04"))
+    assert r["this week"] == (d("2026-09-30"), d("2026-10-04"))
     assert r["next week"] == (d("2026-10-05"), d("2026-10-11"))
+    assert r["this weekend"] == (d("2026-10-03"), d("2026-10-04"))
+
+
+def test_named_ranges_on_a_saturday():
+    r = named_ranges(d("2026-10-03"))
+    assert r["this week"] == (d("2026-10-03"), d("2026-10-11"))
     assert r["this weekend"] == (d("2026-10-03"), d("2026-10-04"))
 
 
@@ -163,7 +169,13 @@ def test_format_calendar(events):
     assert "[E2] Thu 2026-10-01, 3:00pm-4:00pm  Dentist cleaning  at Bright Smile Dental" in text
     assert "- [E1] overlaps [E2]" in text
     empty = format_calendar(lookup(Route(["calendar"], date(2026, 9, 28), date(2026, 9, 28)), events, TODAY, TZ), TZ)
-    assert "No events." in empty
+    assert "No events.\nThe next event after these dates: Tue 2026-09-29, 9:00am-9:15am  Team standup" in empty
+
+
+def test_next_event_only_when_range_is_empty(events):
+    assert lookup(Route(["calendar"], d("2026-10-01"), d("2026-10-01")), events, TODAY, TZ).next_event is None
+    far = lookup(Route(["calendar"], d("2027-07-01"), d("2027-07-01")), events, TODAY, TZ)
+    assert far.events == [] and far.next_event is None
 
 
 # --- ask --------------------------------------------------------------------
@@ -242,6 +254,7 @@ ROUTING_CASES = [
     ("What's on my calendar tomorrow?", "calendar", ("2026-09-28", "2026-09-28")),
     ("What do I have on Thursday?", "calendar", ("2026-10-01", "2026-10-01")),
     ("What's on my calendar next week?", "calendar", ("2026-09-28", "2026-10-04")),
+    ("What's on my calendar this week?", "calendar", ("2026-09-27", "2026-10-04")),
     ("Am I free Saturday morning?", "calendar", ("2026-10-03", "2026-10-03")),
     ("What meetings did I have yesterday?", "calendar", ("2026-09-26", "2026-09-26")),
     ("When is my dentist appointment?", "calendar", "ev-dentist"),

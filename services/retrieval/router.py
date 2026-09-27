@@ -57,9 +57,12 @@ class Route:
 
 def named_ranges(today):
     """Common phrases resolved to dates in code, so the model doesn't do
-    calendar arithmetic. Weeks run Monday to Sunday."""
+    calendar arithmetic. Weeks run Monday to Sunday, except that on a
+    weekend "this week" covers the week ahead."""
     week_start = today - timedelta(days=today.weekday())
     week_end = week_start + timedelta(days=6)
+    # On a weekend, "this week" means the week ahead, not the day or two left.
+    this_week_end = week_end + timedelta(days=7) if today.weekday() >= 5 else week_end
     if today.weekday() == 6:  # Sunday: only today is left of this weekend
         weekend = (today, today)
     else:
@@ -69,7 +72,7 @@ def named_ranges(today):
         "today": (today, today),
         "tomorrow": (today + timedelta(days=1),) * 2,
         "yesterday": (today - timedelta(days=1),) * 2,
-        "this week (rest of it)": (today, week_end),
+        "this week": (today, this_week_end),
         "next week": (week_start + timedelta(days=7), week_end + timedelta(days=7)),
         "last week": (week_start - timedelta(days=7), week_end - timedelta(days=7)),
         "this weekend": weekend,

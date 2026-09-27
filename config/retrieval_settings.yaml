@@ -1,0 +1,13 @@
+sync:
+  email_days: 365          # how far back to fetch email
+  max_emails: 2000         # safety cap per sync run
+  calendar_days_back: 30
+  calendar_days_ahead: 90
+
+chunking:
+  size_chars: 1500         # roughly 350-400 tokens
+  overlap_chars: 200
+
+search:
+  collection: emails
+  top_k: 5                 # emails returned per question

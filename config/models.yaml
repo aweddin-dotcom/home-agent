@@ -16,6 +16,11 @@ profiles:
     chat: null
     embedding: qwen3-embedding:0.6b
 
+shared:
+  # qwen3-embedding expects questions (not documents) to carry an instruction.
+  embedding_query_template: "Instruct: Given a question, retrieve emails that answer it\nQuery: {query}"
+  chat_context_tokens: 8192
+
 # The embedding model must be the same in every profile. Search results
 # are only comparable between machines if it matches, and changing it
 # means re-embedding all stored email.

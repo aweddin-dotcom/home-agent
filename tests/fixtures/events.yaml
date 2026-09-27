@@ -1,0 +1,20 @@
+# Invented calendar events for tests, in Google Calendar API format.
+
+- id: ev-standup
+  summary: Team standup
+  start: {dateTime: "2026-09-29T09:00:00-07:00"}
+  end: {dateTime: "2026-09-29T09:15:00-07:00"}
+  attendees:
+    - {email: alex@example.com}
+    - {email: priya@example.com}
+  organizer: {email: priya@example.com}
+  status: confirmed
+
+- id: ev-trip
+  summary: Lake trip
+  start: {date: "2027-06-12"}
+  end: {date: "2027-06-16"}
+  location: Pine Lake
+  description: "<p>Bring the <b>kayak</b></p>"
+  organizer: {email: alex@example.com}
+  status: confirmed

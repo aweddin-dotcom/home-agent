@@ -29,6 +29,21 @@ Model names live in config/models.yaml, one profile per machine, chosen by
 6. Open WebUI: http://127.0.0.1:3000 (the first account created is the admin).
    Qdrant: http://127.0.0.1:6333/dashboard
 
+## Using it
+
+Run from the project folder with the venv's python, while Ollama and the
+containers are running:
+
+| Command | What it does |
+|---|---|
+| `python scripts/google_auth.py grant ingestion` | One-time: approve read-only Gmail and Calendar access in the browser |
+| `python -m services.ingestion.sync` | Fetch new email and calendar events, clean, and index them. Prints counts only. |
+| `python -m services.retrieval.search "question"` | List the emails that best match a question |
+| `python -m services.retrieval.ask "question"` | Answer a question from email, with sources |
+
+Synced data is stored locally in `data/structured.db` (SQLite) and Qdrant
+(`data/vector_db/`). Neither is ever committed.
+
 ## Moving to the Mac
 
 Clone the repo, install Ollama for macOS, set `MODEL_PROFILE=mac`, pick the

@@ -12,7 +12,15 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
+
+SYNC_STATUS_TABLE = """create table if not exists sync_status (
+    account text primary key,
+    last_attempt text,
+    last_success text,
+    ok integer,
+    detail text       -- counts on success, the error on failure
+)"""
 
 SCHEMA = """
 create table emails (
@@ -48,11 +56,12 @@ create table events (
     synced_at text,
     primary key (account, calendar_id, id)
 );
-"""
+""" + SYNC_STATUS_TABLE + ";\n"
 
 # Upgrades from one version to the next, applied in place.
 MIGRATIONS = {
     2: ["alter table emails add column folders text default '[]'"],
+    3: [SYNC_STATUS_TABLE],
 }
 
 EVENT_COLUMNS = (
@@ -70,8 +79,11 @@ class Store:
         self.rebuilt = False
         if readonly:
             # For services that only read (the chat API). Tolerates a database
-            # that hasn't been synced yet.
-            self.db = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+            # that hasn't been synced yet, or doesn't exist yet.
+            if Path(path).is_file():
+                self.db = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+            else:
+                self.db = sqlite3.connect(":memory:")
             return
         if str(path) != ":memory:":
             path.parent.mkdir(parents=True, exist_ok=True)
@@ -197,6 +209,25 @@ class Store:
             )
             for r in rows
         ]
+
+    # --- sync status ---
+
+    def record_sync(self, account, ok, detail, when=None):
+        when = when or _now()
+        with self.db:
+            self.db.execute(
+                "insert into sync_status (account, last_attempt, last_success, ok, detail) values (?, ?, ?, ?, ?)"
+                " on conflict (account) do update set last_attempt = excluded.last_attempt,"
+                " last_success = coalesce(excluded.last_success, sync_status.last_success),"
+                " ok = excluded.ok, detail = excluded.detail",
+                (account, when, when if ok else None, int(ok), detail),
+            )
+
+    def sync_statuses(self):
+        rows = self._read_all("select account, last_attempt, last_success, ok, detail from sync_status")
+        return {
+            r[0]: {"last_attempt": r[1], "last_success": r[2], "ok": bool(r[3]), "detail": r[4]} for r in rows
+        }
 
     # --- accounts ---
 

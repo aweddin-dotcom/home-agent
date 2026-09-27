@@ -29,7 +29,8 @@ _load_dotenv(ROOT / ".env")
 DATA_DIR = Path(os.environ.get("HOME_AGENT_DATA", ROOT / "data"))
 CONFIG_DIR = Path(os.environ.get("HOME_AGENT_CONFIG", ROOT / "config"))
 TOKENS_DIR = Path(os.environ.get("HOME_AGENT_TOKENS", DATA_DIR / "tokens"))
-STRUCTURED_DB = DATA_DIR / "structured.db"
+# In containers, the database lives in a Docker volume (HOME_AGENT_DB); see docker-compose.yml.
+STRUCTURED_DB = Path(os.environ.get("HOME_AGENT_DB", DATA_DIR / "structured.db"))
 
 OLLAMA_BASE_URL = os.environ.get("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 QDRANT_URL = os.environ.get("QDRANT_URL", "http://127.0.0.1:6333")

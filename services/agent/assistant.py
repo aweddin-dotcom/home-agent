@@ -54,6 +54,7 @@ class Assistant:
     top_k: int = 5
     today: object = None  # fixed date for tests; None means the real today
     open_mail: object = None  # callable returning a read-only Store, for folder names and listings
+    status_notes: object = None  # callable returning sync-health lines for the footer
 
     def condense(self, question, history):
         if not history:
@@ -90,4 +91,11 @@ class Assistant:
         footer = format_sources(context, self.tz)
         if standalone != question:
             footer = f"Understood as: {standalone}\n{footer}"
+        if self.status_notes:
+            try:
+                notes = self.status_notes()
+            except Exception:  # noqa: BLE001 - a status problem must not hide the answer
+                notes = []
+            if notes:
+                footer += "\n" + "\n".join(notes)
         yield SOURCES_MARKER + footer

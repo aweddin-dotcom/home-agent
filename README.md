@@ -39,10 +39,23 @@ containers are running:
 | `python scripts/google_auth.py grant ACCOUNT ingestion` | One-time per Google account: approve read-only Gmail and Calendar access in the browser. ACCOUNT is a label from `config/accounts.yaml`. |
 | `python scripts/microsoft_auth.py grant ACCOUNT ingestion` | Same, for an Outlook/Hotmail account: prints a code to enter at microsoft.com/devicelogin. |
 | `python scripts/icloud_check.py` | For iCloud: after storing the Apple ID and app-specific password with `secrets_cli.py`, check the sign-in and list your calendars. |
-| `python -m services.ingestion.sync` | Fetch new email and calendar events from every enabled account, clean, and index them. Prints counts only. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs. |
-| `python -m services.retrieval.search "question"` | List the emails that best match a question |
+| `python -m services.ingestion.sync` | Sync now, instead of waiting for the next automatic run. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs. Runs inside the `sync-worker` container. |
+| `python -m services.retrieval.search "question"` | List the emails that best match a question (runs in the `agent-api` container) |
 | `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |
 | `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |
+
+### Automatic sync
+
+The `sync-worker` container syncs every enabled account every 15 minutes
+and refreshes folder names hourly (`config/retrieval_settings.yaml`). Under
+each chat answer you'll see when the last sync happened, and a warning for
+any account that's failing (for example an expired approval, with the
+command to fix it) or hasn't synced for an hour. To watch it:
+`docker compose logs -f sync-worker` (counts only, never content).
+
+The synced database lives in a Docker volume (`db`), shared read-only with
+the chat. On its first start the worker copies in `data/structured.db`, so
+nothing is re-downloaded; after that the file in `data/` isn't used.
 
 ### Chat in the browser
 
@@ -56,7 +69,7 @@ If **home-agent** isn't in the model list: Admin Panel > Settings >
 Connections > OpenAI API > add a connection with URL
 `http://agent-api:8000/v1` and any API key (e.g. `none`).
 
-Synced data is stored locally in `data/structured.db` (SQLite) and Qdrant
+Synced data is stored locally in the `db` Docker volume (SQLite) and Qdrant
 (`data/vector_db/`). Neither is ever committed.
 
 ### Accounts

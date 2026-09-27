@@ -60,6 +60,14 @@ Each container receives only the secrets listed for it in
 docker-compose.yml, as files at `/run/secrets/NAME`. Service code reads
 secrets only from there, so it works the same on either machine.
 
+Which container gets what:
+
+| Container | Credentials | Why |
+|---|---|---|
+| `sync-worker` | `data/tokens/` (all approvals), `icloud_apple_id`, `icloud_app_password` | The only service that talks to Google, Microsoft, or Apple. Google and Microsoft approvals carry their own app credentials, so `google_client` and `microsoft_client_id` aren't mounted. |
+| `agent-api` | none | Reads the synced copy and the index only. |
+| `open-webui`, `qdrant` | none | |
+
 On the Mac:
 
 1. The Mac boots; the user unlocks FileVault (at the Mac or over SSH on the

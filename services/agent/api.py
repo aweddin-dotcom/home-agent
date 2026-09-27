@@ -25,6 +25,7 @@ def assistant_from_settings():
     from services.ingestion.store import Store
 
     from .assistant import Assistant
+    from .status import sync_notes
 
     model = settings.models()
     search = settings.retrieval()["search"]
@@ -34,6 +35,11 @@ def assistant_from_settings():
         index=EmailIndex(QdrantClient(url=settings.QDRANT_URL), search["collection"]),
         load_events=lambda: Store(settings.STRUCTURED_DB, readonly=True).all_events(),
         open_mail=lambda: Store(settings.STRUCTURED_DB, readonly=True),
+        status_notes=lambda: sync_notes(
+            Store(settings.STRUCTURED_DB, readonly=True).sync_statuses(),
+            list(settings.accounts()),
+            stale_after_minutes=settings.retrieval()["sync"]["stale_after_minutes"],
+        ),
         tz=settings.TIMEZONE,
         top_k=search["top_k"],
     )

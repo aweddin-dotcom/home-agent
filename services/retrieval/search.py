@@ -31,6 +31,9 @@ def build_from_settings():
 
 
 def main():
+    from services.common.containers import delegate_to_container
+
+    delegate_to_container("agent-api", "services.retrieval.search")
     if len(sys.argv) < 2:
         sys.exit('Usage: python -m services.retrieval.search "your question"')
     embedder, index = build_from_settings()

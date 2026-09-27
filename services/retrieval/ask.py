@@ -160,6 +160,9 @@ def format_sources(context, tz):
 
 
 def main():
+    from services.common.containers import delegate_to_container
+
+    delegate_to_container("agent-api", "services.retrieval.ask")
     from services.common.ollama import OllamaChat
     from services.ingestion.store import Store
 

@@ -39,8 +39,8 @@ services:
       - agent-api
 
   # The assistant's chat API (OpenAI-compatible), used by Open WebUI.
-  # Reads the synced calendar (read-only) and the email index; holds no
-  # Google credentials.
+  # Reads the synced mail and calendar (read-only) and the email index;
+  # holds no credentials at all.
   agent-api:
     build: ./services
     restart: unless-stopped
@@ -48,9 +48,10 @@ services:
     environment:
       - OLLAMA_BASE_URL=http://host.docker.internal:11434
       - QDRANT_URL=http://qdrant:6333
+      - HOME_AGENT_DB=/db/structured.db
     volumes:
       - ./config:/config:ro
-      - ./data/structured.db:/data/structured.db:ro
+      - db:/db:ro
     ports:
       - "127.0.0.1:8000:8000"
     extra_hosts:
@@ -58,18 +59,46 @@ services:
     depends_on:
       - qdrant
 
-  # More services go here. A service lists only the secrets it needs; each
-  # appears inside it at /run/secrets/NAME.
-  # email-sync:
-  #   build: ./services/ingestion
-  #   secrets: [google_client]
-  #   volumes:
-  #     - ./data/tokens/ingestion:/tokens
-  #   depends_on:
-  #     - qdrant
+  # Syncs every enabled account on a schedule (config/retrieval_settings.yaml).
+  # The only service that reaches Google, Microsoft, or Apple. Gets the
+  # approvals folder (tokens are refreshed there) and only the secrets it
+  # uses; the Google and Microsoft app credentials live inside each approval.
+  sync-worker:
+    build: ./services
+    command: ["python", "-m", "services.ingestion.scheduler"]
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - QDRANT_URL=http://qdrant:6333
+      - HOME_AGENT_DB=/db/structured.db
+      - HOME_AGENT_TOKENS=/tokens
+      # Copied into the volume on first start, so nothing is re-downloaded.
+      - HOME_AGENT_SEED_DB=/seed/structured.db
+    volumes:
+      - ./config:/config:ro
+      - db:/db
+      - ./data/tokens:/tokens
+      - ./data/structured.db:/seed/structured.db:ro
+    secrets:
+      - icloud_apple_id
+      - icloud_app_password
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - qdrant
 
-# Files are written by `python scripts/secrets_cli.py export` (run by
-# scripts/up.py) from the OS credential store. Uncomment as services need them.
-# secrets:
-#   google_client:
-#     file: ./secrets/google_client
+# The synced mail and calendar database. A Docker volume rather than a
+# folder on the host: SQLite needs file locking that works reliably between
+# containers, which host folder sharing (especially on Windows) doesn't give.
+# It's a copy of what's at the providers, so it needs no backup.
+volumes:
+  db:
+
+# Written by `python scripts/secrets_cli.py export` (run by scripts/up.py)
+# from the OS credential store.
+secrets:
+  icloud_apple_id:
+    file: ./secrets/icloud_apple_id
+  icloud_app_password:
+    file: ./secrets/icloud_app_password

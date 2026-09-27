@@ -3,6 +3,9 @@ sync:
   max_emails: 2000         # safety cap per sync run
   calendar_days_back: 30
   calendar_days_ahead: 90
+  interval_minutes: 15     # automatic sync (sync-worker container)
+  folders_every_minutes: 60  # folder/label names refresh less often (Gmail quota)
+  stale_after_minutes: 60  # the chat warns when an account hasn't synced for this long
 
 chunking:
   size_chars: 1500         # roughly 350-400 tokens

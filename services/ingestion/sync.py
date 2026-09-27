@@ -51,20 +51,27 @@ def sync_folders(source, store, config, log=print):
     return len(folders)
 
 
-def sync_accounts(accounts, connect, store, embedder, index, config, log=print):
-    """Sync each account; one failing doesn't stop the rest. Returns the labels that failed."""
+def sync_accounts(accounts, connect, store, embedder, index, config, log=print, refresh_folders=True):
+    """Sync each account; one failing doesn't stop the rest. Each account's
+    result is recorded in the store for the chat to report. Returns the
+    labels that failed."""
     failed = []
     for label, account_config in accounts.items():
         log(f"{label}:")
+        counts = []
         try:
             source = connect(label, account_config)
             if source.has_email:
-                sync_emails(source, store, embedder, index, config, log)
-                sync_folders(source, store, config, log)
+                counts.append(f"{sync_emails(source, store, embedder, index, config, log)} new emails")
+                if refresh_folders:
+                    sync_folders(source, store, config, log)
             if source.has_calendar:
-                sync_calendar(source, store, config, log=log)
+                counts.append(f"{sync_calendar(source, store, config, log=log)} events")
+            store.record_sync(label, True, ", ".join(counts))
         except Exception as error:  # noqa: BLE001 - reported, and other accounts continue
-            log(f"  Failed: {type(error).__name__}: {error}")
+            message = f"{type(error).__name__}: {error}"
+            log(f"  Failed: {message}")
+            store.record_sync(label, False, message[:500])
             failed.append(label)
     return failed
 
@@ -75,14 +82,59 @@ def remove_account(label, store, index, log=print):
     log(f"Removed the local copy of '{label}'. Nothing at the provider was changed.")
 
 
-def main(argv=None):
+def open_store_and_index(config):
     from qdrant_client import QdrantClient
 
-    from services.common.ollama import OllamaEmbedder
     from services.embedding.index import EmailIndex
 
-    from .sources import connect
     from .store import Store
+
+    store = Store(settings.STRUCTURED_DB)
+    index = EmailIndex(QdrantClient(url=settings.QDRANT_URL), config["search"]["collection"])
+    if store.rebuilt:
+        print("The local copy was from an older version; rebuilding it from the providers.")
+        index.reset()
+    return store, index
+
+
+def run_once(only_account=None, refresh_folders=True, log=print):
+    """One sync of every enabled account (or just one). Returns the labels that failed."""
+    from services.common.ollama import OllamaEmbedder
+
+    from .sources import connect
+
+    config = settings.retrieval()
+    model = settings.models()
+    store, index = open_store_and_index(config)
+
+    accounts = settings.accounts()
+    if only_account:
+        all_accounts = settings.accounts(include_disabled=True)
+        if only_account not in all_accounts:
+            raise SystemExit(f"No account '{only_account}' in config/accounts.yaml.")
+        accounts = {only_account: all_accounts[only_account]}
+    if not accounts:
+        log("No enabled accounts in config/accounts.yaml.")
+        return []
+
+    stale = set(store.accounts_present()) - set(settings.accounts(include_disabled=True))
+    if stale:
+        log(f"Note: local copies exist for accounts no longer configured: {', '.join(sorted(stale))}. "
+            "Remove with --remove LABEL.")
+
+    embedder = OllamaEmbedder(settings.OLLAMA_BASE_URL, model["embedding"], model["embedding_query_template"])
+    return sync_accounts(
+        accounts, lambda label, cfg: connect(label, cfg, settings.TOKENS_DIR), store, embedder, index, config,
+        log, refresh_folders,
+    )
+
+
+def main(argv=None):
+    from services.common.containers import delegate_to_container
+
+    # On the laptop/Mac itself, run inside the sync-worker container, which
+    # owns the database (a Docker volume).
+    delegate_to_container("sync-worker", "services.ingestion.sync", argv)
 
     parser = argparse.ArgumentParser(description="Sync email and calendar into the local store.")
     group = parser.add_mutually_exclusive_group()
@@ -91,39 +143,16 @@ def main(argv=None):
     group.add_argument("--rebuild", action="store_true", help="clear the local copy of everything, then sync")
     args = parser.parse_args(argv)
 
-    config = settings.retrieval()
-    model = settings.models()
-    store = Store(settings.STRUCTURED_DB)
-    index = EmailIndex(QdrantClient(url=settings.QDRANT_URL), config["search"]["collection"])
-
-    if args.remove:
-        remove_account(args.remove, store, index)
-        return
-    if args.rebuild or store.rebuilt:
-        if store.rebuilt:
-            print("The local copy was from an older version; rebuilding it from the providers.")
+    if args.remove or args.rebuild:
+        store, index = open_store_and_index(settings.retrieval())
+        if args.remove:
+            remove_account(args.remove, store, index)
+            return
         index.reset()
         for label in store.accounts_present():
             store.remove_account(label)
 
-    accounts = settings.accounts()
-    if args.account:
-        all_accounts = settings.accounts(include_disabled=True)
-        if args.account not in all_accounts:
-            raise SystemExit(f"No account '{args.account}' in config/accounts.yaml.")
-        accounts = {args.account: all_accounts[args.account]}
-    if not accounts:
-        raise SystemExit("No enabled accounts in config/accounts.yaml.")
-
-    stale = set(store.accounts_present()) - set(settings.accounts(include_disabled=True))
-    if stale:
-        print(f"Note: local copies exist for accounts no longer configured: {', '.join(sorted(stale))}. "
-              "Remove with --remove LABEL.")
-
-    embedder = OllamaEmbedder(settings.OLLAMA_BASE_URL, model["embedding"], model["embedding_query_template"])
-    failed = sync_accounts(
-        accounts, lambda label, cfg: connect(label, cfg, settings.TOKENS_DIR), store, embedder, index, config
-    )
+    failed = run_once(args.account)
     if failed:
         raise SystemExit(f"Sync failed for: {', '.join(failed)}")
 

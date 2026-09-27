@@ -83,12 +83,14 @@ def cmd_check(account, tool):
     from services.ingestion.graph_api import GraphClient
 
     try:
-        client = GraphClient(TokenProvider(TOKENS_DIR, account, tool))
-        me = client.get("/me", params={"$select": "userPrincipalName,mail"})
+        provider = TokenProvider(TOKENS_DIR, account, tool)
+        provider()
     except MissingToken as error:
         sys.exit(str(error))
+    client = GraphClient(provider)
     print(f"Approval for '{account}' / '{tool}' is valid.")
-    print(f"Microsoft account: {me.get('mail') or me.get('userPrincipalName')}")
+    # /me would need the User.Read permission, which no tool asks for.
+    print(f"Microsoft account: {provider.username}")
     if "Mail" in " ".join(TOOLS[tool]):
         inbox = client.get("/me/mailFolders/inbox", params={"$select": "totalItemCount"})
         print(f"Inbox: {inbox.get('totalItemCount')} messages")

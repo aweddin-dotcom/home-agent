@@ -56,6 +56,13 @@ class TokenProvider:
         self.app = msal.PublicClientApplication(self.client_id, authority=saved["authority"], token_cache=self.cache)
         self.scopes = TOOLS[tool]
 
+    @property
+    def username(self):
+        """The signed-in account's address, from the saved sign-in (no Graph call,
+        so no extra permission is needed)."""
+        accounts = self.app.get_accounts()
+        return accounts[0].get("username", "") if accounts else ""
+
     def __call__(self):
         accounts = self.app.get_accounts()
         result = self.app.acquire_token_silent(self.scopes, account=accounts[0]) if accounts else None

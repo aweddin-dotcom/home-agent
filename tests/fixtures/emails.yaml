@@ -185,3 +185,16 @@
     Arrive: Monday, March 22 (check-in from 4pm)
     Depart: Saturday, March 27 (check-out by 10am)
     Guests: 2 adults, 2 children. Oceanview suite.
+
+# Marketing from the same shop about the very things that were ordered, in
+# the Inbox (no Promotions label, like Outlook), and newer than the order.
+- id: m-lamp-promo
+  from: Northwind Goods <news@northwind.example>
+  to: alex@example.com
+  date: Sat, 26 Sep 2026 09:00:00 -0400
+  subject: "Light up your workspace: new brass desk lamps"
+  html: |
+    <p>New arrivals for your home office: brass desk lamps, walnut bookends,
+    and cozy wool throw blankets. Our desk lamps are 20% off this week only.
+    Shop now and light up your workspace.</p>
+    <p>You're receiving this because you subscribed. Unsubscribe.</p>

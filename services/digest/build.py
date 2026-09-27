@@ -224,12 +224,13 @@ def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=p
     skip_folders = {f.lower() for f in config["skip_folders"]}
     candidates, set_aside = [], 0
     for row in store.emails_since(since):
-        if {f.lower() for f in row.get("folders") or []} & skip_folders:
+        # Marketing (by content, since Outlook has no Promotions tab) needs no model call either.
+        if {f.lower() for f in row.get("folders") or []} & skip_folders or row.get("kind") == "marketing":
             set_aside += 1
         else:
             candidates.append(row)
     limit = config["max_emails_to_sort"]
-    log(f"Digest: sorting {min(len(candidates), limit)} emails ({set_aside} set aside by folder).")
+    log(f"Digest: sorting {min(len(candidates), limit)} emails ({set_aside} set aside as promotions or marketing).")
     system = sort_prompt(config, now.date(), profile)
     sorted_emails = [sort_email(chat, system, row) for row in candidates[:limit]]
 

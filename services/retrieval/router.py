@@ -23,8 +23,9 @@ SCHEMA = {
         "end_date": {"type": ["string", "null"]},
         "calendar_keywords": {"type": "array", "items": {"type": "string"}},
         "mail_folder": {"type": ["string", "null"]},
+        "about_purchases": {"type": "boolean"},
     },
-    "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder"],
+    "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder", "about_purchases"],
 }
 
 SYSTEM_PROMPT = """You route questions about the user's email and calendar. Reply with JSON only.
@@ -63,7 +64,11 @@ example "dentist", "lake trip"). Empty when none.
 
 mail_folder: when the question is about a mail folder or label by name
 ("what's in my travel folder?", "anything new under Receipts?"), that
-name, without the word "folder". Otherwise null."""
+name, without the word "folder". Otherwise null.
+
+about_purchases: true when the question is about something the user bought
+or paid for: an order, delivery, shipment, package, return, refund,
+receipt, or charge ("when will my new boots arrive?"). Otherwise false."""
 
 
 @dataclass
@@ -73,6 +78,7 @@ class Route:
     end: date = None
     keywords: list = field(default_factory=list)
     folder: str = None
+    purchases: bool = False  # about something the user bought: orders, deliveries, receipts
 
 
 def named_ranges(today):
@@ -160,7 +166,14 @@ def validate(raw):
         sources.append("email")
     if "general" in sources and len(sources) > 1:
         sources.remove("general")  # anything personal is answered from the user's data
-    return Route(sources=sources or list(DEFAULT_SOURCES), start=start, end=end, keywords=keywords, folder=folder)
+    purchases = data.get("about_purchases") is True
+    if purchases:
+        # Purchases are the user's own data, confirmed by email.
+        sources = [s for s in sources if s != "general"]
+        if "email" not in sources:
+            sources.append("email")
+    return Route(sources=sources or list(DEFAULT_SOURCES), start=start, end=end, keywords=keywords, folder=folder,
+                 purchases=purchases)
 
 
 def route(question, chat, today):

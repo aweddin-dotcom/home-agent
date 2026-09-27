@@ -145,7 +145,7 @@ def test_build_sorts_new_mail_and_saves(gmail_messages, event_fixtures):
     assert "Set aside" in text
     # The Promotions-labelled newsletter never reached the model.
     assert not any("planting garlic" in s for s in chat.systems)
-    assert len(chat.systems) == len(gmail_messages) - 1
+    assert len(chat.systems) == len(gmail_messages) - 2  # the Promotions newsletter and the marketing email
     saved = store.digest_for(NOW.date())
     assert saved["body"] == text
 

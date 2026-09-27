@@ -12,7 +12,7 @@ from dataclasses import asdict
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 6
+SCHEMA_VERSION = 7
 
 # Two dates this close in one email are read as a span (check-in to check-out).
 SPAN_DAYS = 21
@@ -48,6 +48,7 @@ create table emails (
     synced_at text,
     folders text default '[]',  -- JSON list of folder/label names
     mentioned_dates text default '[]',  -- JSON list of ISO dates the email mentions
+    kind text default 'other',  -- order | marketing | other (kinds.py)
     primary key (account, id)
 );
 create table events (
@@ -88,6 +89,21 @@ def _backfill_mentioned_dates(db):
     )
 
 
+def _email_kind(subject, body, folders=()):
+    from .kinds import email_kind
+
+    return email_kind(subject or "", body or "", folders)
+
+
+def _backfill_kind(db):
+    rows = db.execute("select account, id, subject, body, folders from emails").fetchall()
+    db.executemany(
+        "update emails set kind = ? where account = ? and id = ?",
+        [(_email_kind(subject, body, json.loads(folders or "[]")), account, email_id)
+         for account, email_id, subject, body, folders in rows],
+    )
+
+
 def _add_column(table, column, declaration):
     """A migration step that adds a column unless it's already there."""
     def step(db):
@@ -104,6 +120,7 @@ MIGRATIONS = {
     3: [SYNC_STATUS_TABLE],
     4: [DIGESTS_TABLE],
     5: [_add_column("emails", "mentioned_dates", "text default '[]'"), _backfill_mentioned_dates],
+    6: [_add_column("emails", "kind", "text default 'other'"), _backfill_kind],
 }
 
 EVENT_COLUMNS = (
@@ -167,11 +184,13 @@ class Store:
         e = asdict(email)
         self.db.execute(
             "insert or replace into emails (account, id, thread_id, sender, recipients, cc, date, subject,"
-            " labels, body, snippet, synced_at, mentioned_dates) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " labels, body, snippet, synced_at, mentioned_dates, kind)"
+            " values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 e["account"], e["id"], e["thread_id"], e["sender"], json.dumps(e["to"]), json.dumps(e["cc"]),
                 e["date"], e["subject"], json.dumps(e["labels"]), e["body"], e["snippet"], _now(),
                 json.dumps(_email_dates(e["subject"], e["body"], e["date"])),
+                _email_kind(e["subject"], e["body"]),
             ),
         )
         self.db.commit()
@@ -179,10 +198,18 @@ class Store:
     def update_folders(self, account, folders_by_id):
         """Set the folder/label names of an account's emails, e.g. after the
         user moved some. Emails not in the mapping are left as they are."""
+        from .kinds import MARKETING_FOLDERS
+
         with self.db:
             self.db.executemany(
                 "update emails set folders = ? where account = ? and id = ?",
                 [(json.dumps(sorted(names)), account, email_id) for email_id, names in folders_by_id.items()],
+            )
+            # Gmail's Promotions/Social tabs mark marketing (orders stay orders).
+            self.db.executemany(
+                "update emails set kind = 'marketing' where account = ? and id = ? and kind = 'other'",
+                [(account, email_id) for email_id, names in folders_by_id.items()
+                 if {n.lower() for n in names} & MARKETING_FOLDERS],
             )
 
     def folders_for(self, keys):
@@ -218,9 +245,23 @@ class Store:
     def _email_rows(self):
         return [
             {"account": r[0], "email_id": r[1], "date": r[2], "sender": r[3], "subject": r[4],
-             "snippet": r[5], "folders": json.loads(r[6] or "[]"), "body": r[7]}
-            for r in self._read_all("select account, id, date, sender, subject, snippet, folders, body from emails")
+             "snippet": r[5], "folders": json.loads(r[6] or "[]"), "body": r[7], "kind": r[8] or "other"}
+            for r in self._read_all(
+                "select account, id, date, sender, subject, snippet, folders, body, kind from emails"
+            )
         ]
+
+    def kinds_for(self, keys):
+        """{(account, id): kind} for the given emails."""
+        result = {}
+        for account, email_id in keys:
+            row = self._read_one("select kind from emails where account = ? and id = ?", (account, email_id))
+            result[(account, email_id)] = (row[0] if row else None) or "other"
+        return result
+
+    def recent_orders(self, since):
+        """Order, shipping, delivery, and receipt emails received since a moment, newest first."""
+        return [r for r in self.emails_since(since) if r["kind"] == "order"]
 
     def emails_between(self, start, end, tz, limit=15):
         """Emails received from `start` through `end` (dates, in the user's time

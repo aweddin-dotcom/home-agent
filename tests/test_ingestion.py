@@ -129,6 +129,13 @@ def test_calendar_events_parsed(event_fixtures):
 
 # --- sync -------------------------------------------------------------------
 
+
+def chunk_count(gmail_messages):
+    """Search-index points for the fixture mailbox (long emails have several)."""
+    from services.embedding.chunker import email_chunks
+
+    return sum(len(email_chunks(parse_message(m, "x"), 1500, 200)) for m in gmail_messages)
+
 NOW = datetime(2026, 9, 27, tzinfo=timezone.utc)
 quiet = lambda _: None  # noqa: E731
 
@@ -149,7 +156,7 @@ def test_sync_stores_and_indexes_then_skips_on_rerun(gmail_messages):
         gmail_messages
     )
     assert store.count("emails") == len(gmail_messages)
-    assert index.client.count("emails").count == len(gmail_messages)  # one chunk each
+    assert index.client.count("emails").count == chunk_count(gmail_messages)
 
     second = FakeGmail(gmail_messages)
     assert sync_emails(source(gmail=second), store, embedder, index, CONFIG, quiet) == 0
@@ -200,7 +207,7 @@ def test_same_ids_in_two_accounts_are_kept_apart(gmail_messages, event_fixtures)
         sync_emails(s, store, embedder, index, CONFIG, quiet)
         sync_calendar(s, store, CONFIG, now=NOW, log=quiet)
     assert store.count("emails") == 2 * len(gmail_messages)
-    assert index.client.count("emails").count == 2 * len(gmail_messages)
+    assert index.client.count("emails").count == 2 * chunk_count(gmail_messages)
     assert store.count("events", "gmail-a") == store.count("events", "gmail-b") == len(event_fixtures)
     # Re-syncing one account's calendar leaves the other's alone.
     sync_calendar(source("gmail-a", calendar=FakeCalendar([])), store, CONFIG, now=NOW, log=quiet)
@@ -214,7 +221,7 @@ def test_remove_account_deletes_only_that_accounts_copy(gmail_messages):
         sync_emails(source(account, FakeGmail(gmail_messages)), store, embedder, index, CONFIG, quiet)
     remove_account("gmail-a", store, index, log=quiet)
     assert store.accounts_present() == ["gmail-b"]
-    assert index.client.count("emails").count == len(gmail_messages)
+    assert index.client.count("emails").count == chunk_count(gmail_messages)
 
 
 def test_one_failing_account_does_not_stop_the_others(gmail_messages, event_fixtures):

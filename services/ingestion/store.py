@@ -150,6 +150,10 @@ class Store:
             result[(account, email_id)] = json.loads(row[0]) if row and row[0] else []
         return result
 
+    def email_body(self, account, email_id):
+        row = self._read_one("select body from emails where account = ? and id = ?", (account, email_id))
+        return row[0] if row else ""
+
     def folder_names(self):
         names = set()
         for (folders,) in self._read_all("select distinct folders from emails"):

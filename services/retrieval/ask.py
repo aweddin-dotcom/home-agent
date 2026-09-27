@@ -61,6 +61,7 @@ class Answer:
 
 FOLDER_EXCERPTS = 5  # newest emails in a folder listing shown with an excerpt
 EXCERPT_CHARS = 600
+FULL_EMAIL_CHARS = 3000  # per email, when search is narrowed to a folder or dates
 
 
 def format_emails(hits):
@@ -139,15 +140,32 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None)
         context.folder_rows = rows
         context.sections.append(format_folder(chosen.folder, matched, total, rows, mail.folder_names()))
     if "email" in chosen.sources:
-        # Searching inside a named folder: fetch extra candidates, keep those in it.
-        hits = search(question, embedder, index, top_k * 4 if matched else top_k)
+        dated = mail is not None and received_dates_apply(chosen, today)
+        narrowed = bool(matched) or dated
+        # Searching inside a folder or a date range: fetch extra candidates,
+        # keep only those inside, so similar mail from elsewhere (an older
+        # order from the same shop) can't crowd in.
+        hits = search(question, embedder, index, top_k * 4 if narrowed else top_k)
         if mail is not None and hits:
             folders = mail.folders_for([(h.get("account"), h["email_id"]) for h in hits])
             for hit in hits:
                 hit["folders"] = folders.get((hit.get("account"), hit["email_id"]), [])
         if matched:
             hits = [h for h in hits if set(h.get("folders", [])) & set(matched)]
-        context.hits = sorted(hits[:top_k], key=_received, reverse=True)
+        if dated:
+            last = min(chosen.end, today)
+            hits = [h for h in hits if chosen.start <= _received(h).astimezone(tz).date() <= last]
+        hits = hits[:top_k]
+        if narrowed:
+            # Few, targeted emails: give the model each whole email rather than
+            # the one best-matching piece, so details further down (an item
+            # list after the boilerplate) are there.
+            for hit in hits:
+                body = mail.email_body(hit.get("account"), hit["email_id"])
+                if body:
+                    hit["text"] = (f"Subject: {hit['subject']}\nFrom: {hit['sender']}\nDate: {hit['date'][:10]}\n\n"
+                                   f"{body[:FULL_EMAIL_CHARS]}")
+        context.hits = sorted(hits, key=_received, reverse=True)
         if context.hits or not matched:  # the folder listing already covers an empty result
             context.sections.append(format_emails(context.hits))
     return context

@@ -138,3 +138,35 @@
     Check-in: Tuesday, October 20, 2026 (after 3pm)
     Check-out: Thursday, October 22, 2026 (by 11am)
     Room: King, harbor view. Total: $412.60
+
+# Two orders from the same retailer: an older, delivered one and a newer one
+# confirmed on Sep 24 (the same day as m-sister).
+- id: m-order-old
+  from: Northwind Goods <orders@northwind.example>
+  to: alex@example.com
+  date: Thu, 03 Sep 2026 10:05:00 -0400
+  subject: Your Northwind Goods order has been delivered
+  html: |
+    <p>Hi Alex, thanks for shopping with Northwind Goods!</p>
+    <p>Good news: your order <b>#NW-10442</b> was delivered on September 3.</p>
+    <p>Items in this order:</p>
+    <ul><li>Enamel tea kettle, blue</li><li>Stoneware mugs (set of 2)</li><li>Linen tea towels (3)</li></ul>
+    <p>Questions about your order? Visit our help center. Returns are accepted within 30 days.</p>
+
+- id: m-order-new
+  from: Northwind Goods <orders@northwind.example>
+  to: alex@example.com
+  date: Thu, 24 Sep 2026 14:22:00 -0400
+  subject: Your Northwind Goods order has shipped
+  html: |
+    <p>Hi Alex, thanks for shopping with Northwind Goods!</p>
+    <p>We're happy to let you know that your order has shipped and is on its way. Track your package anytime from your account page, where you can also update delivery instructions or choose a safe place for the carrier to leave it.</p>
+    <p>Returns are accepted within 30 days of delivery. Items must be unused and in their original packaging. Start a return from your account page and print the prepaid label; refunds go back to your original payment method within 5 business days of the item reaching us.</p>
+    <p>Northwind Rewards members earn 2 points per dollar on every order. Points appear in your account once your order is delivered and can be redeemed at checkout on future purchases. Not a member yet? Joining is free and takes less than a minute.</p>
+    <p>Our customer care team is available every day from 8am to 8pm Eastern. Reach us by chat on our website, or reply to this email and we'll get back to you within one business day. Please have your order number ready when you contact us.</p>
+    <p>Thank you for choosing Northwind Goods. We work with small makers around the world, and every purchase supports their craft. Follow us for new arrivals, seasonal collections, and stories from the workshops behind the products you love.</p>
+    <p>Shipping updates: you'll get another email when your package is out for delivery, and a final one when it arrives. If a signature is required, the carrier will leave a notice and try again the next business day, up to three attempts.</p>
+    <p>Gift orders: if this order is a gift, the packing slip shows no prices. You can add a free gift message from your account page any time before the package is out for delivery.</p>
+    <p>Order <b>#NW-11873</b>, estimated delivery Tuesday, September 29.</p>
+    <p>Items in this order:</p>
+    <ul><li>Brass desk lamp</li><li>Walnut bookends (pair)</li><li>Wool throw blanket, grey</li></ul>

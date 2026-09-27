@@ -71,10 +71,10 @@ On the Mac:
 | Secret | Used by | Stored in | How to regenerate |
 |---|---|---|---|
 | Google OAuth client ID + secret | All Google tools (to request tokens) | Credential store | Google Cloud Console → APIs & Services → Credentials → add a new client secret, delete the old one |
-| Gmail read token (`gmail.readonly`) | Email sync | `data/tokens/ingestion/` | Re-run the auth flow for the sync service |
-| Gmail organize token (`gmail.modify`) | Mail tool (labels, folders, drafts) | `data/tokens/mail/` | Re-run the auth flow for the mail tool |
-| Gmail send token (`gmail.send`) | Send tool (after approval only) | `data/tokens/send/` | Re-run the auth flow for the send tool |
-| Calendar token (`calendar.events`) | Calendar tool | `data/tokens/calendar/` | Re-run the auth flow for the calendar tool |
+| Sync token (`gmail.readonly`, `calendar.readonly`) | Email and calendar sync | `data/tokens/ingestion/` | `python scripts/google_auth.py grant ingestion` |
+| Gmail organize token (`gmail.modify`) | Mail tool (labels, folders, drafts) | `data/tokens/mail/` | `python scripts/google_auth.py grant mail` |
+| Gmail send token (`gmail.send`) | Send tool (after approval only) | `data/tokens/send/` | `python scripts/google_auth.py grant send` |
+| Calendar token (`calendar.events`) | Calendar tool | `data/tokens/calendar/` | `python scripts/google_auth.py grant calendar` |
 | Notification token (ntfy or Pushover) | Delivery service | Credential store | Regenerate in the notification service's settings |
 | Approval signing key | Confirmation service; tools that verify approvals | Credential store | Generate a new random key; pending approvals become invalid |
 
@@ -90,6 +90,10 @@ Qdrant and Ollama need no credentials as long as they are reachable only on
 the Mac itself or the internal Docker network, never from the LAN.
 
 ## Google setup notes
+
+- Grant and test each tool's access with `scripts/google_auth.py`
+  (`grant TOOL`, `check TOOL`), run by the user. The tool-to-permission map
+  is `TOOLS` in that script.
 
 - Set the OAuth app's publishing status to **In production** and skip
   verification. The user sees an "unverified app" warning when granting

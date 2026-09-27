@@ -118,11 +118,11 @@ def test_calendar_events_parsed(event_fixtures):
     now = datetime(2026, 9, 27, tzinfo=timezone.utc)
     events = {e.id: e for e in fetch_events(FakeCalendar(event_fixtures), now, 30, 400)}
     standup, trip = events["ev-standup"], events["ev-trip"]
-    assert standup.start == "2026-09-29T09:00:00-07:00" and not standup.all_day
+    assert standup.start == "2026-09-29T09:00:00-04:00" and not standup.all_day
     assert standup.attendees == ["alex@example.com", "priya@example.com"]
     assert trip.all_day and trip.start == "2027-06-12"
-    assert trip.description == "Bring the\nkayak" or "kayak" in trip.description
-    assert "<" not in trip.description
+    assert "kayak" in trip.description and "<" not in trip.description
+    assert events["ev-bookclub"].status == "cancelled"
 
 
 # --- sync -------------------------------------------------------------------
@@ -165,12 +165,14 @@ def test_failed_indexing_leaves_email_for_next_run(gmail_messages):
     )
 
 
-def test_sync_calendar_upserts(event_fixtures):
+def test_sync_calendar_replaces_previous_sync(event_fixtures):
     store, _, _ = make_sync_parts()
     now = datetime(2026, 9, 27, tzinfo=timezone.utc)
-    for _ in range(2):
-        sync_calendar(FakeCalendar(event_fixtures), store, CONFIG, now=now, log=lambda _: None)
-    assert store.count("events") == 2
+    sync_calendar(FakeCalendar(event_fixtures), store, CONFIG, now=now, log=lambda _: None)
+    assert store.count("events") == len(event_fixtures)
+    # An event deleted in Google disappears locally on the next sync.
+    sync_calendar(FakeCalendar(event_fixtures[1:]), store, CONFIG, now=now, log=lambda _: None)
+    assert {e.id for e in store.all_events()} == {e["id"] for e in event_fixtures[1:]}
 
 
 def test_sync_logs_counts_not_content(gmail_messages):

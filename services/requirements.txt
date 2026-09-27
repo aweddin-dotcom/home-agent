@@ -4,3 +4,4 @@ google-auth-oauthlib
 httpx
 pyyaml
 qdrant-client
+tzdata

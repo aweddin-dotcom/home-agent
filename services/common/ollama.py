@@ -34,20 +34,24 @@ class OllamaChat:
         self.think = think
         self.timeout = timeout
 
-    def complete(self, system, user):
-        response = httpx.post(
-            self.url,
-            json={
-                "model": self.model,
-                "stream": False,
-                "think": self.think,
-                "options": {"num_ctx": self.num_ctx},
-                "messages": [
-                    {"role": "system", "content": system},
-                    {"role": "user", "content": user},
-                ],
-            },
-            timeout=self.timeout,
-        )
+    def complete(self, system, user, schema=None, temperature=None):
+        """Reply to one system + user message. With `schema` (a JSON schema),
+        the model must reply with JSON matching it."""
+        options = {"num_ctx": self.num_ctx}
+        if temperature is not None:
+            options["temperature"] = temperature
+        body = {
+            "model": self.model,
+            "stream": False,
+            "think": self.think,
+            "options": options,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        if schema is not None:
+            body["format"] = schema
+        response = httpx.post(self.url, json=body, timeout=self.timeout)
         response.raise_for_status()
         return response.json()["message"]["content"].strip()

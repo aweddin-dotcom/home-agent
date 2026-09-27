@@ -63,7 +63,29 @@ class Store:
         )
         self.db.commit()
 
-    def save_events(self, events):
+    def replace_events(self, events):
+        """Replace all stored events with a fresh sync, so events deleted or
+        moved out of the sync window in Google disappear here too."""
+        with self.db:
+            self.db.execute("delete from events")
+            self._insert_events(events)
+
+    def all_events(self):
+        from .calendar_source import Event
+
+        rows = self.db.execute(
+            "select id, calendar_id, summary, start, end, all_day, location, description, attendees,"
+            " organizer, status from events"
+        )
+        return [
+            Event(
+                id=r[0], calendar_id=r[1], summary=r[2], start=r[3], end=r[4], all_day=bool(r[5]),
+                location=r[6], description=r[7], attendees=json.loads(r[8]), organizer=r[9], status=r[10],
+            )
+            for r in rows
+        ]
+
+    def _insert_events(self, events):
         now = _now()
         self.db.executemany(
             "insert or replace into events (calendar_id, id, summary, start, end, all_day, location,"
@@ -77,7 +99,6 @@ class Store:
                 for ev in events
             ],
         )
-        self.db.commit()
 
     def count(self, table):
         assert table in ("emails", "events")

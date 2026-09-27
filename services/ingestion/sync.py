@@ -37,7 +37,7 @@ def sync_calendar(calendar, store, config, now=None, log=print):
     events = fetch_events(
         calendar, now or datetime.now(timezone.utc), sync["calendar_days_back"], sync["calendar_days_ahead"]
     )
-    store.save_events(events)
+    store.replace_events(events)
     log(f"Calendar: {len(events)} events in the sync window.")
     return len(events)
 

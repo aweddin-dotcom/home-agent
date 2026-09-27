@@ -39,7 +39,8 @@ containers are running:
 | `python scripts/google_auth.py grant ingestion` | One-time: approve read-only Gmail and Calendar access in the browser |
 | `python -m services.ingestion.sync` | Fetch new email and calendar events, clean, and index them. Prints counts only. |
 | `python -m services.retrieval.search "question"` | List the emails that best match a question |
-| `python -m services.retrieval.ask "question"` | Answer a question from email, with sources |
+| `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |
+| `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |
 
 Synced data is stored locally in `data/structured.db` (SQLite) and Qdrant
 (`data/vector_db/`). Neither is ever committed.

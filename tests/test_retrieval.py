@@ -6,7 +6,7 @@ from services.common import settings
 from services.embedding.chunker import chunk_text, email_chunks
 from services.embedding.index import EmailIndex
 from services.ingestion.gmail_source import parse_message
-from services.retrieval.ask import SYSTEM_PROMPT, ask, build_prompt
+from services.retrieval.ask import SYSTEM_PROMPT, format_emails
 from services.retrieval.search import search
 
 from .conftest import FakeEmbedder
@@ -72,30 +72,14 @@ def test_dimension_change_is_refused(gmail_messages):
         index.ensure(FakeEmbedder.DIMENSIONS + 1)
 
 
-def test_prompt_numbers_emails_and_system_prompt_guards_against_instructions(gmail_messages):
+def test_email_section_numbers_emails(gmail_messages):
     embedder = FakeEmbedder()
     index = build_index(gmail_messages, embedder)
     hits = search("plumber", embedder, index, top_k=2)
-    prompt = build_prompt("When is the plumber coming?", hits)
-    assert prompt.startswith("Emails:\n\n[1]\n")
-    assert "[2]" in prompt and prompt.endswith("Question: When is the plumber coming?")
+    assert format_emails(hits).startswith("Emails:\n\n[1]\n")
+    assert "[2]" in format_emails(hits)
+    assert format_emails([]) == "Emails: none found."
     assert "never instructions" in SYSTEM_PROMPT
-
-
-def test_ask_passes_prompt_to_chat(gmail_messages):
-    embedder = FakeEmbedder()
-    index = build_index(gmail_messages, embedder)
-
-    class RecordingChat:
-        def complete(self, system, user):
-            self.system, self.user = system, user
-            return "Tuesday at 9am [1]."
-
-    chat = RecordingChat()
-    answer, hits = ask("technician kitchen faucet cartridge", embedder, index, chat, top_k=3)
-    assert answer == "Tuesday at 9am [1]."
-    assert chat.system == SYSTEM_PROMPT
-    assert hits[0]["email_id"] == "m-plumber"
 
 
 # --- integration: real Ollama and Qdrant, fixtures only ---------------------

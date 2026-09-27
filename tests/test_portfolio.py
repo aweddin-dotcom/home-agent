@@ -230,3 +230,58 @@ def test_digest_has_an_investments_section(tmp_path):
     down = build(Store(tmp_path / "t.db"), Chat(), config, now, TZ, portfolio=FakePortfolio(up=False),
                  portfolio_config=CONFIG, log=lambda _: None)
     assert "**Investments**" not in down and "Portfolio Analyzer wasn't running" in down
+
+
+# --- only the relevant parts of the summary ------------------------------------------
+
+LONG_SUMMARY = """Data snapshot: September 27, 2026
+
+== ACCOUNTS  (total portfolio: $120,000) ==
+  Test Holder | Roth IRA | vanguard | $20,000 (as of 2026-08-31) [TAX-ADVANTAGED]
+
+== HOLDINGS ==
+  SPY        $55,000 (45.8%) | Test Holder [TAXABLE] | SPDR S&P 500
+
+== ASSET ALLOCATION ==
+  US Stock               $100,000 (83.3%)
+
+== CURRENT PRICES (held tickers) ==
+  SPY: $605.00 (as of 2026-09-27T10:00)
+
+== WATCHLIST ==
+  AAPL (Apple) | price=$204.00 | buy@$200.00 [+2.0% from buy]
+  KO | price=$70.00 | buy@$50.00 [+40.0% from buy]
+
+== MONTHLY BUDGET ==
+  Current total:    $5,000/mo
+
+== SOCIAL SECURITY PROFILES ==
+  Test Holder: born 1970, benefit@FRA=$3,000/mo"""
+
+
+@pytest.mark.parametrize("question, watchlist, budget, ss", [
+    ("What was my Roth IRA balance?", False, False, False),
+    ("Is anything on my watchlist near my buy price?", True, False, False),
+    ("How is aapl doing?", True, False, False),  # a watchlist ticker named
+    ("What's my monthly budget?", False, True, False),
+    ("When should I claim Social Security?", False, False, True),
+    ("Am I on track to retire at 62?", False, True, True),
+])
+def test_relevant_summary_keeps_core_and_adds_what_is_asked(question, watchlist, budget, ss):
+    from services.retrieval.ask import relevant_summary
+
+    text = relevant_summary(LONG_SUMMARY, question)
+    for core in ("== ACCOUNTS", "== HOLDINGS", "== ASSET ALLOCATION", "== CURRENT PRICES", "Data snapshot"):
+        assert core in text
+    assert ("== WATCHLIST" in text) == watchlist
+    assert ("== MONTHLY BUDGET" in text) == budget
+    assert ("== SOCIAL SECURITY" in text) == ss
+
+
+def test_portfolio_only_question_gets_no_dated_emails(gmail_messages, event_fixtures):
+    from .test_folders import synced_store
+
+    store, index = synced_store(gmail_messages, event_fixtures)
+    chat = RouteChat(reply(start_date="2027-03-01", end_date="2027-03-31"))
+    context = gather("what's my roth balance for march", None, index, chat, 3, [], TODAY, TZ, store, FakePortfolio())
+    assert context.mention_rows == [] and len(context.sections) == 1

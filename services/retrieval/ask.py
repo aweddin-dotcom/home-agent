@@ -7,6 +7,7 @@ about; calendar events come from the local store by date, emails from
 search. The chat model answers using only what was found.
 """
 
+import re
 import sys
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -215,7 +216,36 @@ def format_news(articles):
     return "\n".join(lines)
 
 
-def add_portfolio(context, portfolio, with_news):
+# Parts of Portfolio Analyzer's summary included only when the question is
+# about them: a long watchlist buries the accounts for a small model.
+OPTIONAL_SECTIONS = {
+    "== WATCHLIST": re.compile(r"watch|target|buy (price|zone|point)|sell (price|zone|point)|near my (buy|sell)", re.I),
+    "== MONTHLY BUDGET": re.compile(r"budget|spend|expense|income|cash ?flow|retire", re.I),
+    "== SOCIAL SECURITY": re.compile(r"social security|\bssa?\b|benefit|retire", re.I),
+}
+
+
+def relevant_summary(text, question):
+    """The summary's always-useful sections (accounts, holdings, allocation,
+    prices) plus any optional ones the question is about. A ticker from the
+    watchlist named in the question brings in the watchlist too."""
+    parts = re.split(r"\n(?===)", text)
+    kept = []
+    for part in parts:
+        header = next((h for h in OPTIONAL_SECTIONS if part.startswith(h)), None)
+        if header is None:
+            kept.append(part)
+            continue
+        wanted = OPTIONAL_SECTIONS[header].search(question)
+        if header == "== WATCHLIST" and not wanted:
+            tickers = {line.split()[0].upper() for line in part.splitlines()[1:] if line.split()}
+            wanted = any(word.upper().strip("?.,!") in tickers for word in question.split())
+        if wanted:
+            kept.append(part)
+    return "\n".join(kept)
+
+
+def add_portfolio(context, portfolio, with_news, question=""):
     """The user's investments from Portfolio Analyzer (a separate app it owns)."""
     from services.portfolio.client import PortfolioUnavailable
 
@@ -227,7 +257,7 @@ def add_portfolio(context, portfolio, with_news):
         summary = portfolio.summary()
         context.sections.append(
             "Investment portfolio, from the user's Portfolio Analyzer app. Balances are as of each "
-            "account's latest uploaded statement; prices are as shown:\n" + summary["text"]
+            "account's latest uploaded statement; prices are as shown:\n" + relevant_summary(summary["text"], question)
         )
         context.portfolio = "used"
         if with_news:
@@ -249,7 +279,7 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None,
     if chosen.sources == ["general"]:
         return context  # answered from the model's own knowledge; nothing to look up
     if "portfolio" in chosen.sources:
-        add_portfolio(context, portfolio, chosen.news)
+        add_portfolio(context, portfolio, chosen.news, question)
     if mail is not None and chosen.purchases:
         # The user's actual orders, so a store's marketing about the same
         # things can't stand in for them.
@@ -262,7 +292,8 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None,
     if "calendar" in chosen.sources:
         context.calendar = lookup(chosen, events, today, tz, calendar_horizon(today))
         context.sections.append(format_calendar(context.calendar, tz))
-    if mail is not None and chosen.start and not received_dates_apply(chosen, today):
+    if (mail is not None and chosen.start and not received_dates_apply(chosen, today)
+            and {"email", "calendar"} & set(chosen.sources)):
         # Plans that only exist in email ("check-in March 23") for the dates asked about.
         _, candidates = mail.emails_mentioning(chosen.start, chosen.end, limit=None)
         candidates = [r for r in candidates if not {f.lower() for f in r["folders"]} & NOISE_FOLDERS]

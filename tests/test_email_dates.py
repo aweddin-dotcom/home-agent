@@ -64,7 +64,7 @@ def test_dates_about_events_are_not_treated_as_arrival_dates():
 def test_stats_are_counts_only(gmail_messages, event_fixtures):
     store, _ = synced_store(gmail_messages, event_fixtures)
     stats = store.stats(TZ, day=date(2026, 9, 24))
-    assert stats == {"gmail": {"emails": len(gmail_messages), "oldest": date(2026, 9, 3),
+    assert stats == {"gmail": {"emails": len(gmail_messages), "oldest": date(2026, 8, 30),
                                "newest": date(2026, 9, 27), "on_day": 2, "events": len(event_fixtures)}}
     assert "Thanksgiving" not in json.dumps(stats, default=str)
 

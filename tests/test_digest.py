@@ -214,7 +214,7 @@ def test_real_model_sorts_sample_mail(gmail_messages):
     for message in gmail_messages:
         email = parse_message(message, "gmail")
         rows[email.id] = {"account": "gmail", "email_id": email.id, "date": email.date, "sender": email.sender,
-                          "subject": email.subject, "snippet": email.snippet, "body": email.body, "folders": []}
+                          "subject": email.subject, "snippet": email.snippet, "body": email.body, "folders": ["Inbox"]}
     got = {i: sort_email(chat, system, rows[i]) for i in
            ("m-school", "m-sister", "m-trick", "m-order-new", "m-dentist")}
     wrong = {}

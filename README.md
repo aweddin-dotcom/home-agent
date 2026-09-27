@@ -45,6 +45,15 @@ containers are running:
 | `python scripts/run_evals.py` | Ask your question set (`data/evals/questions.md`) through the chat and have the local model grade each answer. Report and a history of runs go to `data/evals/results/`. |
 | `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |
 
+### Dates in email
+
+Each email's mentioned dates ("check-in March 23", "due 10/2") are recorded
+at sync, with the year inferred from when it arrived. Questions about a date
+range also list emails that mention those dates, so bookings and deadlines
+that never made it onto a calendar are found; two dates close together in
+one email count as a span (a stay from arrival to departure). Calendars are
+synced a year ahead, and answers say so when a question goes beyond that.
+
 ### Automatic sync
 
 The `sync-worker` container syncs every enabled account every 15 minutes

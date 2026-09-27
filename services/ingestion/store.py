@@ -9,10 +9,13 @@ re-synced.
 import json
 import sqlite3
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 5
+SCHEMA_VERSION = 6
+
+# Two dates this close in one email are read as a span (check-in to check-out).
+SPAN_DAYS = 21
 
 DIGESTS_TABLE = """create table if not exists digests (
     day text primary key,  -- YYYY-MM-DD, the user's local date
@@ -44,6 +47,7 @@ create table emails (
     snippet text,
     synced_at text,
     folders text default '[]',  -- JSON list of folder/label names
+    mentioned_dates text default '[]',  -- JSON list of ISO dates the email mentions
     primary key (account, id)
 );
 create table events (
@@ -65,11 +69,41 @@ create table events (
 );
 """ + SYNC_STATUS_TABLE + ";\n" + DIGESTS_TABLE + ";\n"
 
-# Upgrades from one version to the next, applied in place.
+def _email_dates(subject, body, received):
+    from .dates import mentioned_dates
+
+    try:
+        arrived = datetime.fromisoformat(received).date()
+    except (TypeError, ValueError):
+        return []
+    return mentioned_dates(f"{subject}\n{body}", arrived)
+
+
+def _backfill_mentioned_dates(db):
+    rows = db.execute("select account, id, subject, body, date from emails").fetchall()
+    db.executemany(
+        "update emails set mentioned_dates = ? where account = ? and id = ?",
+        [(json.dumps(_email_dates(subject, body, received)), account, email_id)
+         for account, email_id, subject, body, received in rows],
+    )
+
+
+def _add_column(table, column, declaration):
+    """A migration step that adds a column unless it's already there."""
+    def step(db):
+        existing = {row[1] for row in db.execute(f"pragma table_info({table})")}
+        if column not in existing:
+            db.execute(f"alter table {table} add column {column} {declaration}")
+    return step
+
+
+# Upgrades from one version to the next, applied in place: SQL statements,
+# or functions given the connection.
 MIGRATIONS = {
-    2: ["alter table emails add column folders text default '[]'"],
+    2: [_add_column("emails", "folders", "text default '[]'")],
     3: [SYNC_STATUS_TABLE],
     4: [DIGESTS_TABLE],
+    5: [_add_column("emails", "mentioned_dates", "text default '[]'"), _backfill_mentioned_dates],
 }
 
 EVENT_COLUMNS = (
@@ -110,8 +144,8 @@ class Store:
         version = self.db.execute("pragma user_version").fetchone()[0]
         while version in MIGRATIONS and version < SCHEMA_VERSION:
             with self.db:
-                for statement in MIGRATIONS[version]:
-                    self.db.execute(statement)
+                for step in MIGRATIONS[version]:
+                    step(self.db) if callable(step) else self.db.execute(step)
                 version += 1
                 self.db.execute(f"pragma user_version = {version}")
         if version == SCHEMA_VERSION:
@@ -133,10 +167,11 @@ class Store:
         e = asdict(email)
         self.db.execute(
             "insert or replace into emails (account, id, thread_id, sender, recipients, cc, date, subject,"
-            " labels, body, snippet, synced_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            " labels, body, snippet, synced_at, mentioned_dates) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
             (
                 e["account"], e["id"], e["thread_id"], e["sender"], json.dumps(e["to"]), json.dumps(e["cc"]),
                 e["date"], e["subject"], json.dumps(e["labels"]), e["body"], e["snippet"], _now(),
+                json.dumps(_email_dates(e["subject"], e["body"], e["date"])),
             ),
         )
         self.db.commit()
@@ -201,6 +236,29 @@ class Store:
                 inside.append(row)
         inside.sort(key=_moment, reverse=True)
         return len(inside), inside[:limit]
+
+    def emails_mentioning(self, start, end, limit=8):
+        """Emails that mention a date from `start` through `end` (reservations,
+        deadlines, plans), newest first. Two dates in one email up to
+        SPAN_DAYS apart count as a span (check-in to check-out), so a day
+        in between matches too. Returns (total count, rows); each row has
+        "mentions", the matching dates or spans."""
+        lo, hi = start.isoformat(), end.isoformat()
+        matched = []
+        for r in self._read_all("select account, id, date, sender, subject, snippet, folders, body,"
+                                " mentioned_dates from emails"):
+            dates = sorted(json.loads(r[8] or "[]"))
+            mentions = [d for d in dates if lo <= d <= hi]
+            for first, last in zip(dates, dates[1:]):
+                close = date.fromisoformat(last) - date.fromisoformat(first) <= timedelta(days=SPAN_DAYS)
+                if close and first < lo <= last or close and first <= hi < last:
+                    mentions.append(f"{first} to {last}")
+            if mentions:
+                matched.append({"account": r[0], "email_id": r[1], "date": r[2], "sender": r[3], "subject": r[4],
+                                "snippet": r[5], "folders": json.loads(r[6] or "[]"), "body": r[7],
+                                "mentions": mentions})
+        matched.sort(key=_moment, reverse=True)
+        return len(matched), matched[:limit]
 
     def stats(self, tz, day=None):
         """Counts only, per account: emails, oldest/newest received date, events,

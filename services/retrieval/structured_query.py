@@ -17,6 +17,7 @@ class CalendarResult:
     note: str = ""
     overlaps: list = field(default_factory=list)  # (index_a, index_b) into events
     next_event: object = None  # first event after the range, when the range is empty
+    horizon: date = None  # the calendar is synced through this date; later events are unknown
 
 
 def interval(event, tz):
@@ -79,7 +80,9 @@ def merge_duplicates(events):
     return merged
 
 
-def lookup(route, events, today, tz):
+def lookup(route, events, today, tz, horizon=None):
+    """Events for a route. `horizon`: the last date the calendar is synced
+    through, so the answer can say when dates go beyond what's known."""
     events = sorted(
         merge_duplicates(e for e in events if e.status != "cancelled"), key=lambda e: interval(e, tz)[0]
     )
@@ -121,7 +124,7 @@ def lookup(route, events, today, tz):
     if not selected:
         after = datetime.combine(end + timedelta(days=1), time.min, tz)
         next_event = next((e for e in events if interval(e, tz)[0] >= after), None)
-    return CalendarResult(selected, start, end, note, find_overlaps(selected, tz), next_event)
+    return CalendarResult(selected, start, end, note, find_overlaps(selected, tz), next_event, horizon)
 
 
 def _clock(moment):
@@ -150,10 +153,16 @@ def format_calendar(result, tz):
         dates = f"{result.start:%A} {result.start}"
     else:
         dates = f"{result.start:%A} {result.start} to {result.end:%A} {result.end}"
-    header = (
-        f"Calendar for {dates}. This list is complete for those dates: "
-        "anything not listed is not on the calendar."
-    )
+    if result.horizon and result.end > result.horizon:
+        header = (
+            f"Calendar for {dates}. The calendar is only synced through {result.horizon:%A} {result.horizon}, "
+            "so events after that date are unknown: don't say the user is free then."
+        )
+    else:
+        header = (
+            f"Calendar for {dates}. This list is complete for those dates: "
+            "anything not listed is not on the calendar."
+        )
     lines = [header]
     if result.note:
         lines.append(result.note)
@@ -161,7 +170,8 @@ def format_calendar(result, tz):
         lines.append("No events.")
         if result.next_event:
             e = result.next_event
-            lines.append(f"The next event after these dates: {describe_time(e, tz)}  {e.summary or '(no title)'}")
+            lines.append(f"(Outside the dates asked about, for reference only: the next event after them is "
+                         f"{describe_time(e, tz)}  {e.summary or '(no title)'}.)")
     for n, event in enumerate(result.events, 1):
         line = f"[E{n}] {describe_time(event, tz)}  {event.summary or '(no title)'}"
         if event.location:

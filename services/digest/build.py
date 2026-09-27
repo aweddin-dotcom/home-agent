@@ -43,8 +43,9 @@ category:
   A confirmation of something already arranged is not "attention" unless it
   asks the user to act.
 - "worth_knowing": no action needed, but the user would want to know:
-  packages shipped or out for delivery, confirmations of upcoming bookings,
-  announcements, changes to plans.
+  confirmations of upcoming bookings, announcements, changes to plans.
+  Shipping notices for orders that haven't arrived yet (shipped, out for
+  delivery, arriving on a date) are always "worth_knowing", never "skip".
 - "skip": everything else, including:
 {never}
   and receipts for past purchases, delivered-order notices, and sign-in or

@@ -190,7 +190,8 @@ def test_format_calendar(events):
     assert "[E2] Thu 2026-10-01, 3:00pm-4:00pm  Dentist cleaning  at Bright Smile Dental" in text
     assert "- [E1] overlaps [E2]" in text
     empty = format_calendar(lookup(Route(["calendar"], date(2026, 9, 28), date(2026, 9, 28)), events, TODAY, TZ), TZ)
-    assert "No events.\nThe next event after these dates: Tue 2026-09-29, 9:00am-9:15am  Team standup" in empty
+    assert ("No events.\n(Outside the dates asked about, for reference only: the next event after them is "
+            "Tue 2026-09-29, 9:00am-9:15am  Team standup.)") in empty
 
 
 def test_next_event_only_when_range_is_empty(events):
@@ -286,6 +287,8 @@ ROUTING_CASES = [
     ("Anything new under my Receipts label?", "email", "folder:receipts"),
     ("Can you find the email I got on September 24th?", "email", ("2026-09-24", "2026-09-24")),
     ("What emails came in yesterday?", "email", ("2026-09-26", "2026-09-26")),
+    ("Am I free March 24?", "calendar", ("2027-03-24", "2027-03-24")),
+    ("What travel do I have for spring break?", "calendar", ("2027-03-01", "2027-03-31")),
 ]
 
 
@@ -309,3 +312,14 @@ def test_real_model_routes_questions(events):
         elif isinstance(expected, str) and expected not in ids(lookup(r, events, TODAY, TZ).events):
             wrong[question] = f"lookup missed {expected} (route {r})"
     assert wrong == {}
+
+
+def test_month_table_runs_forward_across_the_year_end():
+    from services.retrieval.router import month_table
+
+    months = month_table(TODAY)
+    assert months[0] == "September 2026: 2026-09-01 to 2026-09-30"
+    assert "December 2026: 2026-12-01 to 2026-12-31" in months
+    assert "February 2027: 2027-02-01 to 2027-02-28" in months
+    assert "March 2027: 2027-03-01 to 2027-03-31" in months
+    assert len(months) == 12

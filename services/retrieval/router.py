@@ -34,16 +34,21 @@ sources: which to search.
   receipts, quotes, plans discussed in messages.
 - Both when the question could involve either, or you're unsure. Visits
   and appointments arranged by message ("when is the plumber coming?")
-  may only be in email, so include email for those.
+  may only be in email, so include email for those. Trips, travel,
+  reservations, bookings, and orders are usually confirmed by email:
+  include email for those too.
 
 start_date, end_date: the dates the question is about, as YYYY-MM-DD,
 inclusive. Copy them from the named ranges and date table; don't calculate.
 A weekday name on its own ("Thursday", "Saturday morning") means the one
 marked "coming" in the table. A single day has start_date equal to
 end_date. For an email question, dates mean when the email arrived ("the
-email from Sept 24th", "what did I get yesterday?"). A date without a year
-is the most recent one not after today, unless the question is clearly
-about the future. Only fill in dates when the question mentions or implies a time.
+email from Sept 24th", "what did I get yesterday?"). For those, a date
+without a year is the most recent one not after today. For anything else
+(plans, trips, appointments), a month or date without a year is the one in
+the Months list, which runs forward from today. Named periods without dates
+mean their usual month: spring break is March, Thanksgiving week is late
+November, winter break is late December. Only fill in dates when the question mentions or implies a time.
 "When is X?" has no dates: use null for both and put X in
 calendar_keywords.
 
@@ -89,9 +94,23 @@ def named_ranges(today):
     }
 
 
+def month_table(today, count=12):
+    """This month and the next ones, with their years and date ranges."""
+    lines = []
+    year, month = today.year, today.month
+    for _ in range(count):
+        first = date(year, month, 1)
+        following = date(year + (month == 12), month % 12 + 1, 1)
+        lines.append(f"{first:%B %Y}: {first} to {following - timedelta(days=1)}")
+        year, month = following.year, following.month
+    return lines
+
+
 def date_table(today, days_back=7, days_ahead=21):
     ranges = [f"{name}: {start} to {end}" for name, (start, end) in named_ranges(today).items()]
-    lines = ["Named ranges:", *ranges, "", "Dates:"]
+    lines = ["Named ranges:", *ranges, "",
+             "Months (a month or date named without a year means the one listed here):",
+             *month_table(today), "", "Dates:"]
     for offset in range(-days_back, days_ahead + 1):
         day = today + timedelta(days=offset)
         labels = {0: ["today"], 1: ["tomorrow"], -1: ["yesterday"]}.get(offset, [])

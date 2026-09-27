@@ -30,4 +30,4 @@ needs_attention:
 # Never needs attention.
 never:
   - Newsletters, promotions, marketing
-  - Routine automated notifications
+  - Routine automated notifications (sign-in alerts, statements available, delivered-order notices)

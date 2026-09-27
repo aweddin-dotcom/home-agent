@@ -170,3 +170,18 @@
     <p>Order <b>#NW-11873</b>, estimated delivery Tuesday, September 29.</p>
     <p>Items in this order:</p>
     <ul><li>Brass desk lamp</li><li>Walnut bookends (pair)</li><li>Wool throw blanket, grey</li></ul>
+
+# A trip booked months ahead: arrived Aug 30, for late March, with no year
+# written (so it means next March).
+- id: m-spring
+  from: Pelican Cove Resort <reservations@pelicancove.example>
+  to: alex@example.com
+  date: Sun, 30 Aug 2026 16:10:00 -0400
+  subject: Reservation confirmed - Pelican Cove Resort
+  text: |
+    Thank you for choosing Pelican Cove Resort.
+
+    Confirmation: PC-5521
+    Arrive: Monday, March 22 (check-in from 4pm)
+    Depart: Saturday, March 27 (check-out by 10am)
+    Guests: 2 adults, 2 children. Oceanview suite.

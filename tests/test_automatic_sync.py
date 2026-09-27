@@ -187,3 +187,32 @@ def test_database_sqlite_file_is_a_real_copy(tmp_path):
     Store(seed)
     seed_database(target, seed)
     assert sqlite3.connect(target).execute("pragma integrity_check").fetchone()[0] == "ok"
+
+
+# --- start-up order ------------------------------------------------------------------
+
+
+def test_waits_for_ollama_before_syncing():
+    from services.ingestion import scheduler
+
+    answers = iter([False, False, True])
+    sleeps = []
+    assert scheduler.wait_until(lambda: next(answers), 600, "Ollama", sleep=sleeps.append, step=15)
+    assert sleeps == [15, 15]
+
+
+def test_syncs_anyway_if_ollama_never_comes_up():
+    from services.ingestion import scheduler
+
+    sleeps = []
+    assert not scheduler.wait_until(lambda: False, 60, "Ollama", sleep=sleeps.append, step=15)
+    assert sum(sleeps) == 60
+
+
+def test_before_run_happens_before_every_sync():
+    clock = FakeClock()
+    clock.sleeps = []
+    order = []
+    run_forever(lambda refresh_folders: order.append("sync") or [], 15, 60, sleep=clock.sleep, clock=clock,
+                cycles=2, before_run=lambda: order.append("wait"))
+    assert order == ["wait", "sync", "wait", "sync"]

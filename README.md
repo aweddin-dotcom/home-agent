@@ -57,6 +57,16 @@ The synced database lives in a Docker volume (`db`), shared read-only with
 the chat. On its first start the worker copies in `data/structured.db`, so
 nothing is re-downloaded; after that the file in `data/` isn't used.
 
+### Starting automatically (Windows laptop)
+
+At sign-in: Docker Desktop and Ollama start themselves (their own
+auto-start settings), and `python scripts/autostart.py install` adds a
+Startup-folder shortcut that runs `scripts/startup.py`: it waits for
+Docker, refreshes the secret files, and runs `docker compose up -d` (which
+also recovers from a manual `docker compose down`). The sync worker waits
+for Ollama before each run, so start-up order doesn't matter. Log:
+`logs/startup.log`. Undo with `python scripts/autostart.py remove`.
+
 ### Chat in the browser
 
 Open WebUI (http://127.0.0.1:3000) offers the assistant as the model

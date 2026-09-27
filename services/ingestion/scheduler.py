@@ -38,13 +38,41 @@ def seed_database(target, seed):
     return True
 
 
+def ollama_ready():
+    import httpx
+
+    try:
+        httpx.get(f"{settings.OLLAMA_BASE_URL}/api/version", timeout=3).raise_for_status()
+        return True
+    except httpx.HTTPError:
+        return False
+
+
+def wait_until(ready, timeout_seconds, what, sleep=time.sleep, step=15):
+    """Wait for something needed (Ollama, after a reboot) before syncing.
+    Returns False if it didn't come up in time; the sync then runs anyway, and
+    whatever needed it fails and is reported."""
+    waited = 0
+    while not ready():
+        if waited >= timeout_seconds:
+            log(f"{what} still not reachable after {timeout_seconds // 60} min; syncing anyway.")
+            return False
+        if waited == 0:
+            log(f"Waiting for {what}...")
+        sleep(step)
+        waited += step
+    return True
+
+
 def run_forever(run_once, interval_minutes, folders_every_minutes, sleep=time.sleep, clock=time.monotonic,
-                cycles=None):
-    """Call run_once(refresh_folders=...) every interval. `cycles` limits the
-    number of runs (for tests); None runs forever."""
+                cycles=None, before_run=None):
+    """Call run_once(refresh_folders=...) every interval, after before_run()
+    if given. `cycles` limits the number of runs (for tests); None runs forever."""
     last_folders = None
     count = 0
     while cycles is None or count < cycles:
+        if before_run:
+            before_run()
         started = clock()
         refresh = last_folders is None or started - last_folders >= folders_every_minutes * 60
         try:
@@ -72,6 +100,9 @@ def main():
         lambda refresh_folders: run_once(refresh_folders=refresh_folders, log=log),
         schedule["interval_minutes"],
         schedule["folders_every_minutes"],
+        # After a reboot the containers can start before Ollama, which is
+        # needed to index new mail.
+        before_run=lambda: wait_until(ollama_ready, 600, "Ollama"),
     )
 
 

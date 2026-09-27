@@ -5,3 +5,5 @@ httpx
 pyyaml
 qdrant-client
 tzdata
+fastapi
+uvicorn

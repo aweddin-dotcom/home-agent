@@ -4,6 +4,7 @@ import json
 import sqlite3
 from dataclasses import asdict
 from datetime import datetime, timezone
+from pathlib import Path
 
 SCHEMA = """
 create table if not exists emails (
@@ -42,7 +43,12 @@ def _now():
 
 
 class Store:
-    def __init__(self, path):
+    def __init__(self, path, readonly=False):
+        if readonly:
+            # For services that only read (the chat API). Tolerates a database
+            # that hasn't been synced yet.
+            self.db = sqlite3.connect(f"{Path(path).resolve().as_uri()}?mode=ro", uri=True)
+            return
         if str(path) != ":memory:":
             path.parent.mkdir(parents=True, exist_ok=True)
         self.db = sqlite3.connect(path)
@@ -73,10 +79,13 @@ class Store:
     def all_events(self):
         from .calendar_source import Event
 
-        rows = self.db.execute(
-            "select id, calendar_id, summary, start, end, all_day, location, description, attendees,"
-            " organizer, status from events"
-        )
+        try:
+            rows = self.db.execute(
+                "select id, calendar_id, summary, start, end, all_day, location, description, attendees,"
+                " organizer, status from events"
+            ).fetchall()
+        except sqlite3.OperationalError:  # read-only store before the first sync
+            return []
         return [
             Event(
                 id=r[0], calendar_id=r[1], summary=r[2], start=r[3], end=r[4], all_day=bool(r[5]),

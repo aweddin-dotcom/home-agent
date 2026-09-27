@@ -25,14 +25,41 @@ services:
       - "127.0.0.1:3000:8080"
     environment:
       - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # The assistant, offered as the "home-agent" model. Open WebUI only
+      # reads these on its first start; otherwise add the connection in
+      # Admin Panel > Settings > Connections (see README).
+      - OPENAI_API_BASE_URL=http://agent-api:8000/v1
+      - OPENAI_API_KEY=not-needed
       - SCARF_NO_ANALYTICS=true
       - DO_NOT_TRACK=true
       - ANONYMIZED_TELEMETRY=false
     extra_hosts:
       - "host.docker.internal:host-gateway"
+    depends_on:
+      - agent-api
 
-  # The assistant's own services go here once built. A service lists only
-  # the secrets it needs; each appears inside it at /run/secrets/NAME.
+  # The assistant's chat API (OpenAI-compatible), used by Open WebUI.
+  # Reads the synced calendar (read-only) and the email index; holds no
+  # Google credentials.
+  agent-api:
+    build: ./services
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      - OLLAMA_BASE_URL=http://host.docker.internal:11434
+      - QDRANT_URL=http://qdrant:6333
+    volumes:
+      - ./config:/config:ro
+      - ./data/structured.db:/data/structured.db:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - qdrant
+
+  # More services go here. A service lists only the secrets it needs; each
+  # appears inside it at /run/secrets/NAME.
   # email-sync:
   #   build: ./services/ingestion
   #   secrets: [google_client]

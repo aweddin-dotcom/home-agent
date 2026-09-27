@@ -42,6 +42,18 @@ containers are running:
 | `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |
 | `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |
 
+### Chat in the browser
+
+Open WebUI (http://127.0.0.1:3000) offers the assistant as the model
+**home-agent**, served by the `agent-api` container. It answers from the last
+sync, handles follow-up questions, and lists what it searched under each
+answer. After changing code in `services/`, run `python scripts/up.py` again
+to rebuild it.
+
+If **home-agent** isn't in the model list: Admin Panel > Settings >
+Connections > OpenAI API > add a connection with URL
+`http://agent-api:8000/v1` and any API key (e.g. `none`).
+
 Synced data is stored locally in `data/structured.db` (SQLite) and Qdrant
 (`data/vector_db/`). Neither is ever committed.
 

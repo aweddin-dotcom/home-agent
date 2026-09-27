@@ -1,5 +1,7 @@
 """Minimal clients for Ollama's embedding and chat APIs."""
 
+import json
+
 import httpx
 
 
@@ -34,24 +36,41 @@ class OllamaChat:
         self.think = think
         self.timeout = timeout
 
-    def complete(self, system, user, schema=None, temperature=None):
-        """Reply to one system + user message. With `schema` (a JSON schema),
-        the model must reply with JSON matching it."""
+    def _body(self, messages, stream, schema=None, temperature=None):
         options = {"num_ctx": self.num_ctx}
         if temperature is not None:
             options["temperature"] = temperature
-        body = {
-            "model": self.model,
-            "stream": False,
-            "think": self.think,
-            "options": options,
-            "messages": [
-                {"role": "system", "content": system},
-                {"role": "user", "content": user},
-            ],
-        }
+        body = {"model": self.model, "stream": stream, "think": self.think, "options": options, "messages": messages}
         if schema is not None:
             body["format"] = schema
+        return body
+
+    @staticmethod
+    def _messages(system, user):
+        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+    def complete(self, system, user, schema=None, temperature=None):
+        """Reply to one system + user message. With `schema` (a JSON schema),
+        the model must reply with JSON matching it."""
+        body = self._body(self._messages(system, user), False, schema, temperature)
         response = httpx.post(self.url, json=body, timeout=self.timeout)
         response.raise_for_status()
         return response.json()["message"]["content"].strip()
+
+    def stream(self, system, user):
+        """Reply to one system + user message, yielding text as it's generated."""
+        yield from self.stream_messages(self._messages(system, user))
+
+    def stream_messages(self, messages):
+        """Reply to a full conversation, yielding text as it's generated."""
+        with httpx.stream("POST", self.url, json=self._body(messages, True), timeout=self.timeout) as response:
+            response.raise_for_status()
+            for line in response.iter_lines():
+                if not line:
+                    continue
+                chunk = json.loads(line)
+                piece = chunk.get("message", {}).get("content", "")
+                if piece:
+                    yield piece
+                if chunk.get("done"):
+                    break

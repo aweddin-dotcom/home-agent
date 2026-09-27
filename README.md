@@ -42,6 +42,7 @@ containers are running:
 | `python -m services.ingestion.sync` | Sync now, instead of waiting for the next automatic run. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs; `--stats [--date YYYY-MM-DD]` shows counts per account (no content). Runs inside the `sync-worker` container. |
 | `python -m services.retrieval.search "question"` | List the emails that best match a question (runs in the `agent-api` container) |
 | `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |
+| `python scripts/run_evals.py` | Ask your question set (`data/evals/questions.md`) through the chat and have the local model grade each answer. Report and a history of runs go to `data/evals/results/`. |
 | `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |
 
 ### Automatic sync

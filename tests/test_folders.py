@@ -89,8 +89,8 @@ def test_moving_an_email_is_picked_up_on_the_next_sync(gmail_messages, event_fix
 def test_emails_in_folder_matches_part_of_the_name(gmail_messages, event_fixtures):
     store, _ = synced_store(gmail_messages, event_fixtures)
     matched, total, rows = store.emails_in_folder("travel")
-    assert matched == ["Travel stuff"] and total == 1
-    assert rows[0]["subject"] == "Fwd: Lake house dates"
+    assert matched == ["Travel stuff"] and total == 2
+    assert [r["email_id"] for r in rows] == ["m-forward", "m-hotel"]  # newest first
     assert store.emails_in_folder("vacation") == ([], 0, [])
 
 
@@ -150,9 +150,11 @@ def test_folder_question_lists_the_folder(gmail_messages, event_fixtures):
                       "calendar_keywords": [], "mail_folder": "travel"})
     context = gather("what's in my travel folder?", FakeEmbedder(), index, chat, 3, [], TODAY, TZ, store)
     folder_section = context.sections[0]
-    assert folder_section.startswith("Emails in Travel stuff (1 most recent of 1):")
-    assert "[F1] 2026-09-26" in folder_section and "Lake house dates" in folder_section
-    assert context.folder_rows[0]["email_id"] == "m-forward"
+    assert folder_section.startswith("Emails in Travel stuff (newest first; 2 most recent of 2):")
+    assert "[F1] Received 2026-09-26" in folder_section and "Lake house dates" in folder_section
+    # The excerpt reaches details beyond the one-line preview.
+    assert "[F2] Received 2026-09-10" in folder_section and "Check-in: Tuesday, October 20, 2026" in folder_section
+    assert [r["email_id"] for r in context.folder_rows] == ["m-forward", "m-hotel"]
 
 
 def test_searched_emails_show_their_folder(gmail_messages, event_fixtures):
@@ -160,8 +162,18 @@ def test_searched_emails_show_their_folder(gmail_messages, event_fixtures):
     chat = RouteChat({"sources": ["email"], "start_date": None, "end_date": None,
                       "calendar_keywords": [], "mail_folder": None})
     context = gather("lake house booked kayak", FakeEmbedder(), index, chat, 3, [], TODAY, TZ, store)
-    assert context.hits[0]["email_id"] == "m-forward"
-    assert "[1]\nFolder: Travel stuff\nSubject: Fwd: Lake house dates" in context.sections[-1]
+    assert "m-forward" in [h["email_id"] for h in context.hits]
+    assert "\nFolder: Travel stuff\nSubject: Fwd: Lake house dates" in context.sections[-1]
+    dates = [h["date"] for h in context.hits]
+    assert dates == sorted(dates, reverse=True)  # newest first
+
+
+def test_naming_a_folder_limits_search_to_it(gmail_messages, event_fixtures):
+    store, index = synced_store(gmail_messages, event_fixtures)
+    chat = RouteChat({"sources": ["email"], "start_date": None, "end_date": None,
+                      "calendar_keywords": [], "mail_folder": "travel"})
+    context = gather("reservation confirmation dates", FakeEmbedder(), index, chat, 3, [], TODAY, TZ, store)
+    assert context.hits and {h["email_id"] for h in context.hits} <= {"m-forward", "m-hotel"}
 
 
 def test_unknown_folder_lists_the_real_ones():

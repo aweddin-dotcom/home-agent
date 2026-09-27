@@ -145,8 +145,8 @@ class Store:
             return [], 0, []
         rows = [
             {"account": r[0], "email_id": r[1], "date": r[2], "sender": r[3], "subject": r[4],
-             "snippet": r[5], "folders": json.loads(r[6] or "[]")}
-            for r in self._read_all("select account, id, date, sender, subject, snippet, folders from emails")
+             "snippet": r[5], "folders": json.loads(r[6] or "[]"), "body": r[7]}
+            for r in self._read_all("select account, id, date, sender, subject, snippet, folders, body from emails")
         ]
         inside = sorted((r for r in rows if set(r["folders"]) & set(matched)), key=lambda r: r["date"], reverse=True)
         return matched, len(inside), inside[:limit]

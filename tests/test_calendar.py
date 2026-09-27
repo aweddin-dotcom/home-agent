@@ -241,8 +241,8 @@ def test_empty_calendar_result_falls_back_to_email(gmail_messages, events):
                          "calendar_keywords": ["plumber"]})
     answer = ask("technician kitchen faucet cartridge", embedder, index, chat, 3, events, TODAY, TZ)
     assert answer.route.sources == ["calendar", "email"]
-    assert answer.hits[0]["email_id"] == "m-plumber"
-    assert "No calendar events match" in chat.user and "Emails:" in chat.user
+    assert "m-plumber" in [h["email_id"] for h in answer.hits]
+    assert "No calendar events match" in chat.user and "Emails (newest first):" in chat.user
 
 
 def test_mixed_question_gets_both_sections(gmail_messages, events):
@@ -251,7 +251,7 @@ def test_mixed_question_gets_both_sections(gmail_messages, events):
                          "calendar_keywords": ["dentist"]})
     answer = ask("dentist appointment moved", embedder, index, chat, 3, events, TODAY, TZ)
     assert answer.hits and answer.calendar.events
-    assert chat.user.index("Calendar for") < chat.user.index("Emails:")
+    assert chat.user.index("Calendar for") < chat.user.index("Emails (newest first):")
     assert chat.user.endswith("Question: dentist appointment moved")
 
 

@@ -76,7 +76,7 @@ def test_email_section_numbers_emails(gmail_messages):
     embedder = FakeEmbedder()
     index = build_index(gmail_messages, embedder)
     hits = search("plumber", embedder, index, top_k=2)
-    assert format_emails(hits).startswith("Emails:\n\n[1]\n")
+    assert format_emails(hits).startswith("Emails (newest first):\n\n[1]\n")
     assert "[2]" in format_emails(hits)
     assert format_emails([]) == "Emails: none found."
     assert "never instructions" in SYSTEM_PROMPT

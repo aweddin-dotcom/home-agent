@@ -28,6 +28,10 @@ Today is {today}.
 - The calendar list is complete for the dates it shows. To say whether the
   user is free at a time, check every event on that day, including all-day
   events.
+- Emails and folder listings are newest first, by the date they arrived.
+  For "most recent", "latest", "last", or "next" questions, compare the
+  dates explicitly, and say which date you went by: when the email arrived,
+  or the date of the trip, reservation, or event it describes.
 - Cite what you used: emails by number like [1], events like [E1], folder
   listings like [F1].
 - Be brief: one to three sentences, or a short list for schedules.
@@ -54,24 +58,34 @@ class Answer:
     calendar: object = None
 
 
+FOLDER_EXCERPTS = 5  # newest emails in a folder listing shown with an excerpt
+EXCERPT_CHARS = 600
+
+
 def format_emails(hits):
+    """Emails for the model, newest first (hits are sorted by the caller)."""
     if not hits:
         return "Emails: none found."
     blocks = []
     for i, hit in enumerate(hits, 1):
         folders = f"Folder: {', '.join(hit['folders'])}\n" if hit.get("folders") else ""
         blocks.append(f"[{i}]\n{folders}{hit['text']}")
-    return "Emails:\n\n" + "\n\n".join(blocks)
+    return "Emails (newest first):\n\n" + "\n\n".join(blocks)
+
+
+def _flat(text, limit):
+    return " ".join((text or "").split())[:limit]
 
 
 def format_folder(name, matched, total, rows, all_folders):
     if not matched:
         known = ", ".join(all_folders[:60]) or "none synced yet"
         return f'No mail folder or label matches "{name}". Folders and labels: {known}.'
-    lines = [f"Emails in {', '.join(matched)} ({len(rows)} most recent of {total}):"]
+    lines = [f"Emails in {', '.join(matched)} (newest first; {len(rows)} most recent of {total}):"]
     for n, row in enumerate(rows, 1):
-        snippet = " ".join((row["snippet"] or "").split())[:150]
-        lines.append(f"[F{n}] {row['date'][:10]}  {row['sender']}  {row['subject']}\n     {snippet}")
+        # The newest few get enough text to show details like reservation dates.
+        text = _flat(row.get("body") or row["snippet"], EXCERPT_CHARS) if n <= FOLDER_EXCERPTS else _flat(row["snippet"], 150)
+        lines.append(f"[F{n}] Received {row['date'][:10]}  From: {row['sender']}  Subject: {row['subject']}\n     {text}")
     return "\n".join(lines)
 
 
@@ -86,17 +100,23 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None)
             # Nothing on the calendar; the answer may be in an email instead
             # ("when is the plumber coming?").
             chosen.sources = [*chosen.sources, "email"]
+    matched = []
     if chosen.folder and mail is not None:
         matched, total, rows = mail.emails_in_folder(chosen.folder)
         context.folder_rows = rows
         context.sections.append(format_folder(chosen.folder, matched, total, rows, mail.folder_names()))
     if "email" in chosen.sources:
-        context.hits = search(question, embedder, index, top_k)
-        if mail is not None and context.hits:
-            folders = mail.folders_for([(h.get("account"), h["email_id"]) for h in context.hits])
-            for hit in context.hits:
+        # Searching inside a named folder: fetch extra candidates, keep those in it.
+        hits = search(question, embedder, index, top_k * 4 if matched else top_k)
+        if mail is not None and hits:
+            folders = mail.folders_for([(h.get("account"), h["email_id"]) for h in hits])
+            for hit in hits:
                 hit["folders"] = folders.get((hit.get("account"), hit["email_id"]), [])
-        context.sections.append(format_emails(context.hits))
+        if matched:
+            hits = [h for h in hits if set(h.get("folders", [])) & set(matched)]
+        context.hits = sorted(hits[:top_k], key=lambda h: h["date"], reverse=True)
+        if context.hits or not matched:  # the folder listing already covers an empty result
+            context.sections.append(format_emails(context.hits))
     return context
 
 

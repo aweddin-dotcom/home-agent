@@ -87,6 +87,18 @@ you've written them; the layout is assembled in code. Read it by asking the
 chat for "my digest". To build today's now: `python -m services.digest.build`
 (prints it; runs in the sync-worker container).
 
+### Investments (Portfolio Analyzer)
+
+Portfolio Analyzer (a separate app in `..\portfolio-analyzer`) owns the
+investment data; Home Agent reads it through the app's read-only
+`/api/home-agent/...` endpoints (`config/portfolio.yaml`). Investment
+questions in chat use its summary (and recent headlines when you ask for
+news), answered by the local model. The digest's Investments section shows
+watchlist tickers nearest their targets, the biggest moves since each
+statement, statement-upload reminders (from "statement ready" emails and
+stale uploads), and condensed news about your holdings. If the app isn't
+running, answers and the digest say so.
+
 ### Chat in the browser
 
 Open WebUI (http://127.0.0.1:3000) offers the assistant as the model

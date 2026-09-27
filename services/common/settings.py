@@ -50,3 +50,13 @@ def models():
 
 def retrieval():
     return load_config("retrieval_settings.yaml")
+
+
+def accounts(include_disabled=False):
+    """Accounts from config/accounts.yaml, keyed by label, in file order."""
+    configured = load_config("accounts.yaml").get("accounts") or {}
+    return {
+        label: {"enabled": True, **(cfg or {})}
+        for label, cfg in configured.items()
+        if include_disabled or (cfg or {}).get("enabled", True)
+    }

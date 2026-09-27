@@ -10,7 +10,8 @@ from .cleaners import clean_body, html_to_text
 
 @dataclass
 class Email:
-    id: str
+    account: str  # label from config/accounts.yaml
+    id: str  # the provider's id, unique within the account
     thread_id: str
     sender: str
     to: list
@@ -52,7 +53,7 @@ def _date(header, internal_date_ms):
     return datetime.fromtimestamp(int(internal_date_ms or 0) / 1000, tz=timezone.utc).isoformat()
 
 
-def parse_message(msg):
+def parse_message(msg, account):
     payload = msg.get("payload", {})
     headers = {h["name"].lower(): h["value"] for h in payload.get("headers", [])}
     plain = _find_part(payload, "text/plain")
@@ -62,6 +63,7 @@ def parse_message(msg):
         html = _find_part(payload, "text/html")
         body = clean_body(html_to_text(html)) if html is not None else ""
     return Email(
+        account=account,
         id=msg["id"],
         thread_id=msg.get("threadId", msg["id"]),
         sender=headers.get("from", ""),
@@ -75,7 +77,7 @@ def parse_message(msg):
     )
 
 
-def fetch_messages(service, query, max_messages, skip_ids=frozenset()):
+def fetch_messages(service, account, query, max_messages, skip_ids=frozenset()):
     """Yield parsed emails matching a Gmail search, newest first, skipping known ids."""
     messages = service.users().messages()
     request = messages.list(userId="me", q=query, maxResults=min(500, max_messages))
@@ -88,5 +90,5 @@ def fetch_messages(service, query, max_messages, skip_ids=frozenset()):
                 return
             if ref["id"] in skip_ids:
                 continue
-            yield parse_message(messages.get(userId="me", id=ref["id"], format="full").execute())
+            yield parse_message(messages.get(userId="me", id=ref["id"], format="full").execute(), account)
         request = messages.list_next(request, response)

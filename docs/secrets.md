@@ -30,7 +30,7 @@ the credentials stay protected.
 |---|---|---|
 | Fixed secrets (client secret, notifier token, signing key) | The OS credential store: macOS login Keychain on the Mac Studio, Windows Credential Manager on the laptop | Encrypted, built in, readable by scripts through Python's `keyring` library on both |
 | Runtime copies of fixed secrets | `secrets/` (generated at startup, owner-only permissions, never committed) | Mounted into containers as Docker secrets at `/run/secrets/...`, not environment variables |
-| OAuth tokens (Google) | `data/tokens/<tool>/`, a volume mounted only into the container that uses it | Google refreshes tokens, so the tool must be able to write them |
+| OAuth tokens (Google) | `data/tokens/<account>/<tool>/`, mounted only into the container that uses it | Google refreshes tokens, so the tool must be able to write them |
 | Everything on disk | FileVault-encrypted disk | Protects data if the Mac is stolen |
 
 Edge's password manager is for website logins only; nothing here uses it.
@@ -71,10 +71,10 @@ On the Mac:
 | Secret | Used by | Stored in | How to regenerate |
 |---|---|---|---|
 | Google OAuth client ID + secret | All Google tools (to request tokens) | Credential store | Google Cloud Console → APIs & Services → Credentials → add a new client secret, delete the old one |
-| Sync token (`gmail.readonly`, `calendar.readonly`) | Email and calendar sync | `data/tokens/ingestion/` | `python scripts/google_auth.py grant ingestion` |
-| Gmail organize token (`gmail.modify`) | Mail tool (labels, folders, drafts) | `data/tokens/mail/` | `python scripts/google_auth.py grant mail` |
-| Gmail send token (`gmail.send`) | Send tool (after approval only) | `data/tokens/send/` | `python scripts/google_auth.py grant send` |
-| Calendar token (`calendar.events`) | Calendar tool | `data/tokens/calendar/` | `python scripts/google_auth.py grant calendar` |
+| Sync token (`gmail.readonly`, `calendar.readonly`) | Email and calendar sync | `data/tokens/<account>/ingestion/` | `python scripts/google_auth.py grant ACCOUNT ingestion` |
+| Gmail organize token (`gmail.modify`) | Mail tool (labels, folders, drafts) | `data/tokens/<account>/mail/` | `python scripts/google_auth.py grant ACCOUNT mail` |
+| Gmail send token (`gmail.send`) | Send tool (after approval only) | `data/tokens/<account>/send/` | `python scripts/google_auth.py grant ACCOUNT send` |
+| Calendar token (`calendar.events`) | Calendar tool | `data/tokens/<account>/calendar/` | `python scripts/google_auth.py grant ACCOUNT calendar` |
 | Notification token (ntfy or Pushover) | Delivery service | Credential store | Regenerate in the notification service's settings |
 | Approval signing key | Confirmation service; tools that verify approvals | Credential store | Generate a new random key; pending approvals become invalid |
 
@@ -92,7 +92,8 @@ the Mac itself or the internal Docker network, never from the LAN.
 ## Google setup notes
 
 - Grant and test each tool's access with `scripts/google_auth.py`
-  (`grant TOOL`, `check TOOL`), run by the user. The tool-to-permission map
+  (`grant ACCOUNT TOOL`, `check ACCOUNT TOOL`), run by the user.
+  ACCOUNT is a label from config/accounts.yaml. The tool-to-permission map
   is `TOOLS` in that script.
 
 - Set the OAuth app's publishing status to **In production** and skip

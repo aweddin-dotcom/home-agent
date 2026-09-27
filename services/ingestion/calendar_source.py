@@ -8,6 +8,7 @@ from .cleaners import clean_body, html_to_text
 
 @dataclass
 class Event:
+    account: str  # label from config/accounts.yaml
     id: str
     calendar_id: str
     summary: str
@@ -19,14 +20,16 @@ class Event:
     attendees: list
     organizer: str
     status: str
+    ical_uid: str = ""  # same across providers and accounts; used to merge copies
 
 
-def parse_event(event, calendar_id):
+def parse_event(event, calendar_id, account):
     start, end = event.get("start", {}), event.get("end", {})
     description = event.get("description", "")
     if "<" in description:
         description = html_to_text(description)
     return Event(
+        account=account,
         id=event["id"],
         calendar_id=calendar_id,
         summary=event.get("summary", ""),
@@ -38,10 +41,11 @@ def parse_event(event, calendar_id):
         attendees=[a["email"] for a in event.get("attendees", []) if "email" in a],
         organizer=event.get("organizer", {}).get("email", ""),
         status=event.get("status", ""),
+        ical_uid=event.get("iCalUID", ""),
     )
 
 
-def fetch_events(service, now, days_back, days_ahead):
+def fetch_events(service, account, now, days_back, days_ahead):
     """All events, on every calendar the account can see, within a window around now."""
     time_min = (now - timedelta(days=days_back)).isoformat()
     time_max = (now + timedelta(days=days_ahead)).isoformat()
@@ -58,6 +62,6 @@ def fetch_events(service, now, days_back, days_ahead):
         )
         while request is not None:
             response = request.execute()
-            events.extend(parse_event(e, calendar["id"]) for e in response.get("items", []))
+            events.extend(parse_event(e, calendar["id"], account) for e in response.get("items", []))
             request = api.list_next(request, response)
     return events

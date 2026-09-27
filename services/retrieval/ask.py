@@ -96,12 +96,14 @@ def format_sources(context, tz):
     if context.calendar and context.calendar.events:
         lines.append("Events:")
         lines.extend(
-            f"  [E{n}] {describe_time(e, tz)}  {e.summary}" for n, e in enumerate(context.calendar.events, 1)
+            f"  [E{n}] {describe_time(e, tz)}  {e.summary}  ({e.account})"
+            for n, e in enumerate(context.calendar.events, 1)
         )
     if context.hits:
         lines.append("Emails:")
         lines.extend(
-            f"  [{i}] {h['date'][:10]}  {h['sender']}  {h['subject']}" for i, h in enumerate(context.hits, 1)
+            f"  [{i}] {h['date'][:10]}  {h['sender']}  {h['subject']}  ({h.get('account', '')})"
+            for i, h in enumerate(context.hits, 1)
         )
     return "\n".join(lines)
 

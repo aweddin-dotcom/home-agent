@@ -35,7 +35,7 @@ def test_prefers_paragraph_breaks():
 
 
 def test_email_chunks_carry_header(gmail_messages):
-    email = parse_message(next(m for m in gmail_messages if m["id"] == "m-contractor"))
+    email = parse_message(next(m for m in gmail_messages if m["id"] == "m-contractor"), "gmail-test")
     chunks = email_chunks(email, 1500, 200)
     assert chunks[0].startswith("Subject: Kitchen remodel quote and timeline\nFrom: Sam Ortiz")
     assert "Date: 2026-09-22" in chunks[0]
@@ -47,7 +47,7 @@ def test_email_chunks_carry_header(gmail_messages):
 def build_index(gmail_messages, embedder, client=None, collection="emails"):
     index = EmailIndex(client or QdrantClient(":memory:"), collection)
     for message in gmail_messages:
-        email = parse_message(message)
+        email = parse_message(message, "gmail-test")
         chunks = email_chunks(email, 1500, 200)
         index.upsert_email(email, chunks, embedder.embed_documents(chunks))
     return index

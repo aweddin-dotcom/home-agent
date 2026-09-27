@@ -55,17 +55,29 @@ def fake_env(tmp_path, monkeypatch):
     monkeypatch.setattr(google_auth, "ROOT", tmp_path)
     monkeypatch.setattr(google_auth, "InstalledAppFlow", FakeFlow)
     monkeypatch.setattr(google_auth, "load_client_config", lambda: {"installed": {}})
+    monkeypatch.setattr(
+        google_auth.settings, "accounts", lambda include_disabled=False: {"gmail-test": {"provider": "google"}}
+    )
     return tmp_path
 
 
 def test_grant_saves_token_when_all_scopes_approved(fake_env):
     FakeFlow.granted = google_auth.TOOLS["ingestion"]
-    google_auth.main(["grant", "ingestion"])
-    assert (fake_env / "tokens" / "ingestion" / "token.json").read_text() == '{"token": "fake"}'
+    google_auth.main(["grant", "gmail-test", "ingestion"])
+    assert (fake_env / "tokens" / "gmail-test" / "ingestion" / "token.json").read_text() == '{"token": "fake"}'
 
 
 def test_grant_saves_nothing_when_a_scope_is_unticked(fake_env):
     FakeFlow.granted = [google_auth.GMAIL_READONLY]
     with pytest.raises(SystemExit):
-        google_auth.main(["grant", "ingestion"])
-    assert not (fake_env / "tokens" / "ingestion" / "token.json").exists()
+        google_auth.main(["grant", "gmail-test", "ingestion"])
+    assert not (fake_env / "tokens" / "gmail-test" / "ingestion" / "token.json").exists()
+
+
+def test_grant_refuses_unknown_or_non_google_accounts(fake_env, monkeypatch):
+    monkeypatch.setattr(
+        google_auth.settings, "accounts", lambda include_disabled=False: {"icloud": {"provider": "icloud"}}
+    )
+    for account in ("nope", "icloud"):
+        with pytest.raises(SystemExit):
+            google_auth.main(["grant", account, "ingestion"])

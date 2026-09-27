@@ -56,8 +56,23 @@ def find_overlaps(events, tz):
     ]
 
 
+def merge_duplicates(events):
+    """One copy of each event that appears in several calendars or accounts (an
+    invite accepted in two places). Copies share an iCalUID; instances of a
+    recurring event share it too, so the start time is part of the key."""
+    seen, merged = set(), []
+    for event in events:
+        key = (event.ical_uid, event.start) if event.ical_uid else (event.account, event.calendar_id, event.id)
+        if key not in seen:
+            seen.add(key)
+            merged.append(event)
+    return merged
+
+
 def lookup(route, events, today, tz):
-    events = sorted((e for e in events if e.status != "cancelled"), key=lambda e: interval(e, tz)[0])
+    events = sorted(
+        merge_duplicates(e for e in events if e.status != "cancelled"), key=lambda e: interval(e, tz)[0]
+    )
     note = ""
     # Keywords that name no event at all (e.g. "Thursday") are ignored.
     route_keywords = [k for k in route.keywords if any(matches(e, k) for e in events)] if route.start else route.keywords

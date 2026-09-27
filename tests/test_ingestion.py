@@ -6,8 +6,9 @@ from services.embedding.index import EmailIndex
 from services.ingestion.calendar_source import fetch_events
 from services.ingestion.cleaners import clean_body, html_to_text
 from services.ingestion.gmail_source import fetch_messages, parse_message
-from services.ingestion.store import Store
-from services.ingestion.sync import sync_calendar, sync_emails
+from services.ingestion.sources import GoogleSource
+from services.ingestion.store import SCHEMA_VERSION, Store
+from services.ingestion.sync import remove_account, sync_accounts, sync_calendar, sync_emails
 
 from .conftest import FakeCalendar, FakeEmbedder, FakeGmail
 
@@ -19,7 +20,7 @@ CONFIG = {
 
 
 def parsed(gmail_messages, message_id):
-    return parse_message(next(m for m in gmail_messages if m["id"] == message_id))
+    return parse_message(next(m for m in gmail_messages if m["id"] == message_id), "gmail-test")
 
 
 # --- cleaning ---------------------------------------------------------------
@@ -82,7 +83,7 @@ def test_headers_parsed(gmail_messages):
 def test_missing_date_header_falls_back_to_internal_date(gmail_messages):
     message = next(m for m in gmail_messages if m["id"] == "m-dentist")
     message["payload"]["headers"] = [h for h in message["payload"]["headers"] if h["name"] != "Date"]
-    assert parse_message(message).date.startswith("2026-")
+    assert parse_message(message, "gmail-test").date.startswith("2026-")
 
 
 def test_attachments_are_not_used_as_body():
@@ -97,18 +98,18 @@ def test_attachments_are_not_used_as_body():
             ],
         },
     }
-    assert parse_message(message).body == "body"
+    assert parse_message(message, "gmail-test").body == "body"
 
 
 def test_fetch_pages_through_and_skips_known(gmail_messages):
     gmail = FakeGmail(gmail_messages, page_size=2)
-    emails = list(fetch_messages(gmail, "q", max_messages=100, skip_ids={"m-plumber"}))
+    emails = list(fetch_messages(gmail, "gmail-test", "q", max_messages=100, skip_ids={"m-plumber"}))
     assert len(emails) == len(gmail_messages) - 1
     assert "m-plumber" not in gmail.fetched
 
 
 def test_fetch_respects_max(gmail_messages):
-    assert len(list(fetch_messages(FakeGmail(gmail_messages), "q", max_messages=4))) == 4
+    assert len(list(fetch_messages(FakeGmail(gmail_messages), "gmail-test", "q", max_messages=4))) == 4
 
 
 # --- calendar ---------------------------------------------------------------
@@ -116,7 +117,7 @@ def test_fetch_respects_max(gmail_messages):
 
 def test_calendar_events_parsed(event_fixtures):
     now = datetime(2026, 9, 27, tzinfo=timezone.utc)
-    events = {e.id: e for e in fetch_events(FakeCalendar(event_fixtures), now, 30, 400)}
+    events = {e.id: e for e in fetch_events(FakeCalendar(event_fixtures), "gmail-test", now, 30, 400)}
     standup, trip = events["ev-standup"], events["ev-trip"]
     assert standup.start == "2026-09-29T09:00:00-04:00" and not standup.all_day
     assert standup.attendees == ["alex@example.com", "priya@example.com"]
@@ -127,6 +128,9 @@ def test_calendar_events_parsed(event_fixtures):
 
 # --- sync -------------------------------------------------------------------
 
+NOW = datetime(2026, 9, 27, tzinfo=timezone.utc)
+quiet = lambda _: None  # noqa: E731
+
 
 def make_sync_parts():
     store = Store(":memory:")
@@ -134,17 +138,20 @@ def make_sync_parts():
     return store, FakeEmbedder(), index
 
 
+def source(account="gmail-test", gmail=None, calendar=None):
+    return GoogleSource(account, gmail, calendar)
+
+
 def test_sync_stores_and_indexes_then_skips_on_rerun(gmail_messages):
     store, embedder, index = make_sync_parts()
-    logs = []
-    assert sync_emails(FakeGmail(gmail_messages), store, embedder, index, CONFIG, log=logs.append) == len(
+    assert sync_emails(source(gmail=FakeGmail(gmail_messages)), store, embedder, index, CONFIG, quiet) == len(
         gmail_messages
     )
     assert store.count("emails") == len(gmail_messages)
     assert index.client.count("emails").count == len(gmail_messages)  # one chunk each
 
     second = FakeGmail(gmail_messages)
-    assert sync_emails(second, store, embedder, index, CONFIG, log=logs.append) == 0
+    assert sync_emails(source(gmail=second), store, embedder, index, CONFIG, quiet) == 0
     assert second.fetched == []
 
 
@@ -156,28 +163,93 @@ def test_failed_indexing_leaves_email_for_next_run(gmail_messages):
             raise RuntimeError("ollama down")
 
     try:
-        sync_emails(FakeGmail(gmail_messages), store, BrokenEmbedder(), index, CONFIG, log=lambda _: None)
+        sync_emails(source(gmail=FakeGmail(gmail_messages)), store, BrokenEmbedder(), index, CONFIG, quiet)
     except RuntimeError:
         pass
     assert store.count("emails") == 0
-    assert sync_emails(FakeGmail(gmail_messages), store, embedder, index, CONFIG, log=lambda _: None) == len(
+    assert sync_emails(source(gmail=FakeGmail(gmail_messages)), store, embedder, index, CONFIG, quiet) == len(
         gmail_messages
     )
 
 
 def test_sync_calendar_replaces_previous_sync(event_fixtures):
     store, _, _ = make_sync_parts()
-    now = datetime(2026, 9, 27, tzinfo=timezone.utc)
-    sync_calendar(FakeCalendar(event_fixtures), store, CONFIG, now=now, log=lambda _: None)
+    sync_calendar(source(calendar=FakeCalendar(event_fixtures)), store, CONFIG, now=NOW, log=quiet)
     assert store.count("events") == len(event_fixtures)
-    # An event deleted in Google disappears locally on the next sync.
-    sync_calendar(FakeCalendar(event_fixtures[1:]), store, CONFIG, now=now, log=lambda _: None)
+    # An event deleted at the provider disappears locally on the next sync.
+    sync_calendar(source(calendar=FakeCalendar(event_fixtures[1:])), store, CONFIG, now=NOW, log=quiet)
     assert {e.id for e in store.all_events()} == {e["id"] for e in event_fixtures[1:]}
 
 
 def test_sync_logs_counts_not_content(gmail_messages):
     store, embedder, index = make_sync_parts()
     logs = []
-    sync_emails(FakeGmail(gmail_messages), store, embedder, index, CONFIG, log=logs.append)
+    sync_emails(source(gmail=FakeGmail(gmail_messages)), store, embedder, index, CONFIG, logs.append)
     output = " ".join(logs)
     assert "Thanksgiving" not in output and "@" not in output
+
+
+# --- multiple accounts -------------------------------------------------------
+
+
+def test_same_ids_in_two_accounts_are_kept_apart(gmail_messages, event_fixtures):
+    store, embedder, index = make_sync_parts()
+    for account in ("gmail-a", "gmail-b"):
+        s = source(account, FakeGmail(gmail_messages), FakeCalendar(event_fixtures))
+        sync_emails(s, store, embedder, index, CONFIG, quiet)
+        sync_calendar(s, store, CONFIG, now=NOW, log=quiet)
+    assert store.count("emails") == 2 * len(gmail_messages)
+    assert index.client.count("emails").count == 2 * len(gmail_messages)
+    assert store.count("events", "gmail-a") == store.count("events", "gmail-b") == len(event_fixtures)
+    # Re-syncing one account's calendar leaves the other's alone.
+    sync_calendar(source("gmail-a", calendar=FakeCalendar([])), store, CONFIG, now=NOW, log=quiet)
+    assert store.count("events", "gmail-a") == 0
+    assert store.count("events", "gmail-b") == len(event_fixtures)
+
+
+def test_remove_account_deletes_only_that_accounts_copy(gmail_messages):
+    store, embedder, index = make_sync_parts()
+    for account in ("gmail-a", "gmail-b"):
+        sync_emails(source(account, FakeGmail(gmail_messages)), store, embedder, index, CONFIG, quiet)
+    remove_account("gmail-a", store, index, log=quiet)
+    assert store.accounts_present() == ["gmail-b"]
+    assert index.client.count("emails").count == len(gmail_messages)
+
+
+def test_one_failing_account_does_not_stop_the_others(gmail_messages, event_fixtures):
+    store, embedder, index = make_sync_parts()
+
+    def connect(label, config):
+        if label == "broken":
+            raise RuntimeError("token expired")
+        return source(label, FakeGmail(gmail_messages), FakeCalendar(event_fixtures))
+
+    logs = []
+    accounts = {"broken": {"provider": "google"}, "gmail-b": {"provider": "google"}}
+    failed = sync_accounts(accounts, connect, store, embedder, index, CONFIG, logs.append)
+    assert failed == ["broken"]
+    assert store.accounts_present() == ["gmail-b"]
+    assert any("token expired" in line for line in logs)
+
+
+def test_older_store_layout_is_rebuilt(tmp_path):
+    import sqlite3
+
+    path = tmp_path / "structured.db"
+    old = sqlite3.connect(path)
+    old.execute("create table emails (id text primary key, body text)")
+    old.execute("insert into emails values ('x', 'old')")
+    old.commit()
+    old.close()
+
+    store = Store(path)
+    assert store.rebuilt
+    assert store.count("emails") == 0
+    assert store.db.execute("pragma user_version").fetchone()[0] == SCHEMA_VERSION
+    assert not Store(path).rebuilt  # current layout is left alone
+
+
+def test_readonly_store_before_first_sync(tmp_path):
+    path = tmp_path / "structured.db"
+    path.touch()
+    assert Store(path, readonly=True).all_events() == []

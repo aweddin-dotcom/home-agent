@@ -13,7 +13,8 @@ def search(query, embedder, index, top_k):
     points = index.search(embedder.embed_query(query), limit=top_k * 3)
     best = {}
     for point in points:  # already sorted by score, highest first
-        best.setdefault(point.payload["email_id"], {**point.payload, "score": point.score})
+        key = (point.payload.get("account"), point.payload["email_id"])
+        best.setdefault(key, {**point.payload, "score": point.score})
     return list(best.values())[:top_k]
 
 
@@ -37,7 +38,7 @@ def main():
     if not hits:
         print("No emails indexed yet. Run: python -m services.ingestion.sync")
     for i, hit in enumerate(hits, 1):
-        print(f"[{i}] score {hit['score']:.2f}  {hit['date'][:10]}  {hit['sender']}")
+        print(f"[{i}] score {hit['score']:.2f}  {hit['date'][:10]}  ({hit.get('account', '')})  {hit['sender']}")
         print(f"    {hit['subject']}")
 
 

@@ -21,7 +21,7 @@ TODAY = date(2026, 9, 27)  # a Sunday
 
 @pytest.fixture
 def events(event_fixtures):
-    return [parse_event(e, "primary") for e in event_fixtures]
+    return [parse_event(e, "primary", "gmail-test") for e in event_fixtures]
 
 
 def ids(events):
@@ -142,6 +142,27 @@ def test_dates_kept_when_they_contain_the_named_event(events):
     assert ids(lookup(route, events, TODAY, TZ).events) == ["ev-budget", "ev-dentist", "ev-call"]
 
 
+def test_same_event_in_two_accounts_is_shown_once(events):
+    from dataclasses import replace
+
+    copies = [replace(e, account="icloud") for e in events if e.id == "ev-dentist"]
+    for event in events + copies:
+        event.ical_uid = event.ical_uid or f"uid-{event.id}"
+    result = lookup(Route(["calendar"], d("2026-10-01"), d("2026-10-01")), events + copies, TODAY, TZ)
+    assert ids(result.events) == ["ev-budget", "ev-dentist"]
+
+
+def test_recurring_instances_sharing_a_uid_are_all_kept(events):
+    from dataclasses import replace
+
+    standup = next(e for e in events if e.id == "ev-standup")
+    weekly = [replace(standup, id=f"ev-standup-{i}", ical_uid="uid-standup",
+                      start=f"2026-09-{29 + i}T09:00:00-04:00", end=f"2026-09-{29 + i}T09:15:00-04:00")
+              for i in range(2)]
+    result = lookup(Route(["calendar"], d("2026-09-29"), d("2026-09-30")), weekly, TODAY, TZ)
+    assert len(result.events) == 2
+
+
 def test_multi_word_keyword_needs_every_word(events):
     assert ids(lookup(Route(["calendar"], keywords=["lake trip"]), events, TODAY, TZ).events) == ["ev-trip"]
     result = lookup(Route(["calendar"], keywords=["lake party"]), events, TODAY, TZ)
@@ -198,7 +219,7 @@ def email_index(gmail_messages):
     embedder = FakeEmbedder()
     index = EmailIndex(QdrantClient(":memory:"), "emails")
     for message in gmail_messages:
-        email = parse_message(message)
+        email = parse_message(message, "gmail-test")
         chunks = email_chunks(email, 1500, 200)
         index.upsert_email(email, chunks, embedder.embed_documents(chunks))
     return embedder, index

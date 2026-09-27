@@ -51,10 +51,10 @@ def assistant(gmail_messages, event_fixtures):
     embedder = FakeEmbedder()
     index = EmailIndex(QdrantClient(":memory:"), "emails")
     for message in gmail_messages:
-        email = parse_message(message)
+        email = parse_message(message, "gmail-test")
         chunks = email_chunks(email, 1500, 200)
         index.upsert_email(email, chunks, embedder.embed_documents(chunks))
-    events = [parse_event(e, "primary") for e in event_fixtures]
+    events = [parse_event(e, "primary", "gmail-test") for e in event_fixtures]
 
     def make(chat):
         return Assistant(chat, embedder, index, lambda: events, TZ, top_k=3, today=TODAY)

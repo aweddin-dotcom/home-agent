@@ -21,16 +21,18 @@ class EmailIndex:
         if existing != dimensions:
             raise RuntimeError(
                 f"Collection '{self.collection}' holds {existing}-dimension vectors but the embedding "
-                f"model produces {dimensions}. The embedding model changed: re-index all email."
+                f"model produces {dimensions}. The embedding model changed: re-index all email "
+                "(python -m services.ingestion.sync --rebuild)."
             )
 
     def upsert_email(self, email, chunks, vectors):
         self.ensure(len(vectors[0]))
         points = [
             qm.PointStruct(
-                id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"email:{email.id}:{i}")),
+                id=str(uuid.uuid5(uuid.NAMESPACE_URL, f"email:{email.account}:{email.id}:{i}")),
                 vector=vector,
                 payload={
+                    "account": email.account,
                     "email_id": email.id,
                     "thread_id": email.thread_id,
                     "subject": email.subject,
@@ -48,3 +50,16 @@ class EmailIndex:
         if not self.client.collection_exists(self.collection):
             return []
         return self.client.query_points(self.collection, query=vector, limit=limit, with_payload=True).points
+
+    def remove_account(self, account):
+        if self.client.collection_exists(self.collection):
+            self.client.delete(
+                self.collection,
+                points_selector=qm.FilterSelector(
+                    filter=qm.Filter(must=[qm.FieldCondition(key="account", match=qm.MatchValue(value=account))])
+                ),
+            )
+
+    def reset(self):
+        if self.client.collection_exists(self.collection):
+            self.client.delete_collection(self.collection)

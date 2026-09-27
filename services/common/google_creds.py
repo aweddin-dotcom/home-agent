@@ -5,7 +5,6 @@ Each tool gets its own token with only the permissions it needs
 """
 
 import os
-import sys
 
 GMAIL_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
 GMAIL_MODIFY = "https://www.googleapis.com/auth/gmail.modify"
@@ -21,8 +20,8 @@ TOOLS = {
 }
 
 
-def token_path(tokens_dir, tool):
-    return tokens_dir / tool / "token.json"
+def token_path(tokens_dir, account, tool):
+    return tokens_dir / account / tool / "token.json"
 
 
 def save_private(path, text):
@@ -34,14 +33,21 @@ def save_private(path, text):
         f.write(text)
 
 
-def load_credentials(tokens_dir, tool):
-    """Load a tool's token, refreshing and re-saving it if it has expired."""
+class MissingToken(Exception):
+    pass
+
+
+def load_credentials(tokens_dir, account, tool):
+    """Load an account's token for a tool, refreshing and re-saving it if expired."""
     from google.auth.transport.requests import Request
     from google.oauth2.credentials import Credentials
 
-    path = token_path(tokens_dir, tool)
+    path = token_path(tokens_dir, account, tool)
     if not path.exists():
-        sys.exit(f"No token for '{tool}'. Run: python scripts/google_auth.py grant {tool}")
+        raise MissingToken(
+            f"No '{tool}' token for account '{account}'. "
+            f"Run: python scripts/google_auth.py grant {account} {tool}"
+        )
     creds = Credentials.from_authorized_user_file(str(path), TOOLS[tool])
     if not creds.valid:
         creds.refresh(Request())

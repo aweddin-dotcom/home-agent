@@ -36,8 +36,8 @@ containers are running:
 
 | Command | What it does |
 |---|---|
-| `python scripts/google_auth.py grant ingestion` | One-time: approve read-only Gmail and Calendar access in the browser |
-| `python -m services.ingestion.sync` | Fetch new email and calendar events, clean, and index them. Prints counts only. |
+| `python scripts/google_auth.py grant ACCOUNT ingestion` | One-time per Google account: approve read-only Gmail and Calendar access in the browser. ACCOUNT is a label from `config/accounts.yaml`. |
+| `python -m services.ingestion.sync` | Fetch new email and calendar events from every enabled account, clean, and index them. Prints counts only. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs. |
 | `python -m services.retrieval.search "question"` | List the emails that best match a question |
 | `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |
 | `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |
@@ -57,11 +57,21 @@ Connections > OpenAI API > add a connection with URL
 Synced data is stored locally in `data/structured.db` (SQLite) and Qdrant
 (`data/vector_db/`). Neither is ever committed.
 
+### Accounts
+
+Accounts are listed in `config/accounts.yaml` under generic labels (never
+email addresses; the file is committed). Each email and event is stored with
+its account's label, and events that appear in several calendars are shown
+once. The local copy is rebuilt from the providers whenever its layout
+changes, so it never needs migrating or backing up.
+
 ## Moving to the Mac
 
-Clone the repo, install Ollama for macOS, set `MODEL_PROFILE=mac`, pick the
-chat model in config/models.yaml, and copy `data/` over by hand (it is never
-in git). Then follow docs/network.md and docs/secrets.md.
+Clone the repo, install Ollama for macOS, set `MODEL_PROFILE=mac`, and pick
+the chat model in config/models.yaml. Copy over by hand only what you wrote
+yourself in `data/` (profile, question set); synced email and calendar are
+rebuilt by granting access again and running the sync. Then follow
+docs/network.md and docs/secrets.md.
 
 ## Docs
 

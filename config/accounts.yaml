@@ -1,0 +1,13 @@
+# Accounts to sync. This file is committed: use short generic labels, never
+# email addresses. Which mailbox or calendar a label refers to is decided
+# when you grant access, e.g.
+#   python scripts/google_auth.py grant gmail-test ingestion
+#
+# provider: google (Gmail + Google Calendar). More providers to come.
+# enabled: false stops syncing it; its local copy stays until you run
+#   python -m services.ingestion.sync --remove LABEL
+
+accounts:
+  gmail-test:
+    provider: google
+    enabled: true

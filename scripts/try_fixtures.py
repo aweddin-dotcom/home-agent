@@ -57,10 +57,10 @@ def main():
     index = EmailIndex(client, COLLECTION)
     try:
         for fixture in load("emails.yaml"):
-            email = parse_message(to_gmail_message(fixture))
+            email = parse_message(to_gmail_message(fixture), "gmail-test")
             chunks = email_chunks(email, 1500, 200)
             index.upsert_email(email, chunks, embedder.embed_documents(chunks))
-        events = [parse_event(e, "primary") for e in load("events.yaml")]
+        events = [parse_event(e, "primary", "gmail-test") for e in load("events.yaml")]
 
         print(f"Model: {model['chat']}. Today is {TODAY:%A} {TODAY}.\n")
         for question in sys.argv[1:] or QUESTIONS:

@@ -43,6 +43,11 @@ class GoogleSource:
     def events(self, now, days_back, days_ahead):
         return fetch_events(self.calendar, self.account, now, days_back, days_ahead, self.log)
 
+    def folders(self, days, max_emails):
+        from .gmail_source import fetch_label_map
+
+        return fetch_label_map(self.gmail, f"newer_than:{days}d -in:drafts", max_emails, self.log)
+
 
 class MicrosoftSource:
     """Outlook/Hotmail mail and calendar, read-only, via Microsoft Graph and
@@ -75,6 +80,11 @@ class MicrosoftSource:
         from .microsoft_source import fetch_events
 
         return fetch_events(self.client, self.account, now, days_back, days_ahead)
+
+    def folders(self, days, max_emails):
+        from .microsoft_source import fetch_folder_map
+
+        return fetch_folder_map(self.client, datetime.now(timezone.utc) - timedelta(days=days), max_emails)
 
 
 PROVIDERS = {"google": GoogleSource, "microsoft": MicrosoftSource}

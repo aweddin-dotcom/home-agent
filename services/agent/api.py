@@ -33,6 +33,7 @@ def assistant_from_settings():
         embedder=OllamaEmbedder(settings.OLLAMA_BASE_URL, model["embedding"], model["embedding_query_template"]),
         index=EmailIndex(QdrantClient(url=settings.QDRANT_URL), search["collection"]),
         load_events=lambda: Store(settings.STRUCTURED_DB, readonly=True).all_events(),
+        open_mail=lambda: Store(settings.STRUCTURED_DB, readonly=True),
         tz=settings.TIMEZONE,
         top_k=search["top_k"],
     )

@@ -1,6 +1,7 @@
 # Invented emails for tests. All names, addresses, and events are made up.
 # tests/conftest.py converts these into Gmail API message format.
 # Fields: text and/or html are the body parts; neither = no body.
+# labels: Gmail label ids (default [INBOX]); names are in tests/conftest.py.
 
 - id: m-plumber
   from: Rick's Plumbing <office@ricksplumbing.example>
@@ -51,6 +52,7 @@
     host? Mom says she can bring pies either way.</div>
 
 - id: m-receipt
+  labels: [INBOX, Label_receipts]
   from: Hilltop Hardware <receipts@hilltophardware.example>
   to: alex@example.com
   date: Sat, 19 Sep 2026 11:32:00 -0700
@@ -89,6 +91,7 @@
     Reply C to confirm.
 
 - id: m-forward
+  labels: [Label_travel]
   from: Alex Morgan <alex@example.com>
   to: alex.test@example.com
   date: Sat, 26 Sep 2026 10:00:00 -0700
@@ -102,6 +105,7 @@
     The lake house is booked for June 12-15. Bring the kayak!
 
 - id: m-newsletter
+  labels: [INBOX, CATEGORY_PROMOTIONS, UNREAD]
   from: Garden Weekly <news@gardenweekly.example>
   to: alex@example.com
   date: Sun, 27 Sep 2026 06:00:00 -0700

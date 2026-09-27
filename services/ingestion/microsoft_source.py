@@ -141,3 +141,36 @@ def fetch_events(client, account, now, days_back, days_ahead):
         for event in client.paged(f"/me/calendars/{calendar['id']}/calendarView", params, headers):
             events.append(parse_graph_event(event, calendar["id"], account))
     return events
+
+
+def folder_paths(client):
+    """{folder id: "Parent/Child" name} for every mail folder, nested ones included."""
+    paths = {}
+
+    def walk(url, prefix):
+        for folder in client.paged(url, {"$top": "100", "$select": "id,displayName,childFolderCount"}):
+            path = f"{prefix}{folder['displayName']}"
+            paths[folder["id"]] = path
+            if folder.get("childFolderCount"):
+                walk(f"/me/mailFolders/{folder['id']}/childFolders", f"{path}/")
+
+    walk("/me/mailFolders", "")
+    return paths
+
+
+def fetch_folder_map(client, since, max_messages):
+    """{message id: [folder name]} for every email in the sync window."""
+    paths = folder_paths(client)
+    params = {
+        "$filter": f"receivedDateTime ge {since.astimezone(timezone.utc):%Y-%m-%dT%H:%M:%SZ}",
+        "$orderby": "receivedDateTime desc",
+        "$top": "500",
+        "$select": "id,parentFolderId",
+    }
+    folders = {}
+    for message in client.paged("/me/messages", params):
+        if len(folders) >= max_messages:
+            break
+        name = paths.get(message.get("parentFolderId"))
+        folders[message["id"]] = [name] if name else []
+    return folders

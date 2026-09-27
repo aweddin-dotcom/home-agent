@@ -94,3 +94,48 @@ def fetch_messages(service, account, query, max_messages, skip_ids=frozenset(), 
             message = execute(messages.get(userId="me", id=ref["id"], format="full"), log)
             yield parse_message(message, account)
         request = messages.list_next(request, response)
+
+
+# Gmail system labels worth knowing about, by display name. Other system
+# labels (UNREAD, CHAT, ...) aren't folders to the user.
+SYSTEM_LABELS = {
+    "INBOX": "Inbox",
+    "SENT": "Sent",
+    "STARRED": "Starred",
+    "IMPORTANT": "Important",
+    "CATEGORY_PROMOTIONS": "Promotions",
+    "CATEGORY_SOCIAL": "Social",
+    "CATEGORY_UPDATES": "Updates",
+    "CATEGORY_FORUMS": "Forums",
+}
+
+
+def _list_ids(service, query, max_messages, log, label_id=None):
+    messages = service.users().messages()
+    kwargs = {"userId": "me", "q": query, "maxResults": min(500, max_messages)}
+    if label_id:
+        kwargs["labelIds"] = [label_id]
+    request = messages.list(**kwargs)
+    ids = []
+    while request is not None and len(ids) < max_messages:
+        response = execute(request, log)
+        ids.extend(ref["id"] for ref in response.get("messages", []))
+        request = messages.list_next(request, response)
+    return ids[:max_messages]
+
+
+def fetch_label_map(service, query, max_messages, log=print):
+    """{message id: [label names]} for every email in the sync window, from
+    one cheap id-only listing per label rather than fetching each email."""
+    labels = execute(service.users().labels().list(userId="me"), log).get("labels", [])
+    names = {
+        label["id"]: SYSTEM_LABELS.get(label["id"], label["name"])
+        for label in labels
+        if label.get("type") == "user" or label["id"] in SYSTEM_LABELS
+    }
+    folders = {message_id: [] for message_id in _list_ids(service, query, max_messages, log)}
+    for label_id, name in names.items():
+        for message_id in _list_ids(service, query, max_messages, log, label_id):
+            if message_id in folders:
+                folders[message_id].append(name)
+    return folders

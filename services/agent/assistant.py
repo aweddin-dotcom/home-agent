@@ -53,6 +53,7 @@ class Assistant:
     tz: object
     top_k: int = 5
     today: object = None  # fixed date for tests; None means the real today
+    open_mail: object = None  # callable returning a read-only Store, for folder names and listings
 
     def condense(self, question, history):
         if not history:
@@ -80,7 +81,10 @@ class Assistant:
         earlier = messages[: len(messages) - 1 - messages[::-1].index(user_messages[-1])]
         standalone = self.condense(question, history_text(earlier))
         today = self.today or datetime.now(self.tz).date()
-        context = gather(standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz)
+        mail = self.open_mail() if self.open_mail else None
+        context = gather(
+            standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz, mail
+        )
         yield from self.chat.stream(*answer_prompt(standalone, context, today))
 
         footer = format_sources(context, self.tz)

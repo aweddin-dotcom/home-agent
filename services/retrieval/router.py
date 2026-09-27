@@ -20,8 +20,9 @@ SCHEMA = {
         "start_date": {"type": ["string", "null"]},
         "end_date": {"type": ["string", "null"]},
         "calendar_keywords": {"type": "array", "items": {"type": "string"}},
+        "mail_folder": {"type": ["string", "null"]},
     },
-    "required": ["sources", "start_date", "end_date", "calendar_keywords"],
+    "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder"],
 }
 
 SYSTEM_PROMPT = """You route questions about the user's email and calendar. Reply with JSON only.
@@ -44,7 +45,11 @@ end_date. Only fill in dates when the question mentions or implies a time.
 calendar_keywords.
 
 calendar_keywords: names of specific events the question mentions (for
-example "dentist", "lake trip"). Empty when none."""
+example "dentist", "lake trip"). Empty when none.
+
+mail_folder: when the question is about a mail folder or label by name
+("what's in my travel folder?", "anything new under Receipts?"), that
+name, without the word "folder". Otherwise null."""
 
 
 @dataclass
@@ -53,6 +58,7 @@ class Route:
     start: date = None
     end: date = None
     keywords: list = field(default_factory=list)
+    folder: str = None
 
 
 def named_ranges(today):
@@ -120,7 +126,11 @@ def validate(raw):
     if start and (end - start).days > MAX_RANGE_DAYS:
         start = end = None
     keywords = [k.strip() for k in data.get("calendar_keywords") or [] if isinstance(k, str) and k.strip()]
-    return Route(sources=sources or list(SOURCES), start=start, end=end, keywords=keywords)
+    folder = data.get("mail_folder")
+    folder = folder.strip() if isinstance(folder, str) and folder.strip() else None
+    if folder and "email" not in sources:
+        sources.append("email")
+    return Route(sources=sources or list(SOURCES), start=start, end=end, keywords=keywords, folder=folder)
 
 
 def route(question, chat, today):

@@ -282,6 +282,8 @@ ROUTING_CASES = [
     ("Does the dentist appointment conflict with anything?", "calendar", "ev-dentist"),
     ("How much did I spend at the hardware store?", "email", None),
     ("What did the contractor say about the timeline?", "email", None),
+    ("What's in my travel stuff folder?", "email", "folder:travel"),
+    ("Anything new under my Receipts label?", "email", "folder:receipts"),
 ]
 
 
@@ -299,6 +301,9 @@ def test_real_model_routes_questions(events):
             wrong[question] = f"sources {r.sources}"
         elif isinstance(expected, tuple) and (str(r.start), str(r.end)) != expected:
             wrong[question] = f"dates {r.start} to {r.end}"
+        elif isinstance(expected, str) and expected.startswith("folder:"):
+            if expected[7:] not in (r.folder or "").lower():
+                wrong[question] = f"folder {r.folder!r}"
         elif isinstance(expected, str) and expected not in ids(lookup(r, events, TODAY, TZ).events):
             wrong[question] = f"lookup missed {expected} (route {r})"
     assert wrong == {}

@@ -43,6 +43,14 @@ def sync_calendar(source, store, config, now=None, log=print):
     return len(events)
 
 
+def sync_folders(source, store, config, log=print):
+    """Refresh folder/label names for every synced email, so moves are picked up."""
+    folders = source.folders(config["sync"]["email_days"], config["sync"]["max_emails"])
+    store.update_folders(source.account, folders)
+    log(f"  Folders: refreshed for {len(folders)} emails.")
+    return len(folders)
+
+
 def sync_accounts(accounts, connect, store, embedder, index, config, log=print):
     """Sync each account; one failing doesn't stop the rest. Returns the labels that failed."""
     failed = []
@@ -52,6 +60,7 @@ def sync_accounts(accounts, connect, store, embedder, index, config, log=print):
             source = connect(label, account_config)
             if source.has_email:
                 sync_emails(source, store, embedder, index, config, log)
+                sync_folders(source, store, config, log)
             if source.has_calendar:
                 sync_calendar(source, store, config, log=log)
         except Exception as error:  # noqa: BLE001 - reported, and other accounts continue

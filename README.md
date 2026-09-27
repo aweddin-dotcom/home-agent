@@ -63,8 +63,11 @@ Synced data is stored locally in `data/structured.db` (SQLite) and Qdrant
 Accounts are listed in `config/accounts.yaml` under generic labels (never
 email addresses; the file is committed). Each email and event is stored with
 its account's label, and events that appear in several calendars are shown
-once. The local copy is rebuilt from the providers whenever its layout
-changes, so it never needs migrating or backing up.
+once. Mail is read from every folder (except junk, deleted, and drafts),
+and each sync refreshes folder and label names for all synced mail, so
+"what's in my travel folder?" works and moved emails are picked up. The
+local copy is upgraded in place for small layout changes and otherwise
+rebuilt from the providers, so it never needs backing up.
 
 ## Moving to the Mac
 

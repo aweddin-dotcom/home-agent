@@ -1,8 +1,9 @@
 """Local SQLite store for synced emails and calendar events (data/structured.db).
 
 This is a copy of what's in the providers, rebuilt by syncing. When the
-layout changes (SCHEMA_VERSION), an older copy is cleared and re-synced
-rather than migrated.
+layout changes (SCHEMA_VERSION), a copy one version back is upgraded in
+place where that's cheap (MIGRATIONS); anything older is cleared and
+re-synced.
 """
 
 import json
@@ -11,7 +12,7 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA = """
 create table emails (
@@ -27,6 +28,7 @@ create table emails (
     body text,
     snippet text,
     synced_at text,
+    folders text default '[]',  -- JSON list of folder/label names
     primary key (account, id)
 );
 create table events (
@@ -47,6 +49,11 @@ create table events (
     primary key (account, calendar_id, id)
 );
 """
+
+# Upgrades from one version to the next, applied in place.
+MIGRATIONS = {
+    2: ["alter table emails add column folders text default '[]'"],
+}
 
 EVENT_COLUMNS = (
     "account, id, calendar_id, summary, start, end, all_day, location, description, attendees,"
@@ -73,6 +80,12 @@ class Store:
 
     def _ensure_schema(self):
         version = self.db.execute("pragma user_version").fetchone()[0]
+        while version in MIGRATIONS and version < SCHEMA_VERSION:
+            with self.db:
+                for statement in MIGRATIONS[version]:
+                    self.db.execute(statement)
+                version += 1
+                self.db.execute(f"pragma user_version = {version}")
         if version == SCHEMA_VERSION:
             return
         tables = [r[0] for r in self.db.execute("select name from sqlite_master where type = 'table'")]
@@ -99,6 +112,54 @@ class Store:
             ),
         )
         self.db.commit()
+
+    def update_folders(self, account, folders_by_id):
+        """Set the folder/label names of an account's emails, e.g. after the
+        user moved some. Emails not in the mapping are left as they are."""
+        with self.db:
+            self.db.executemany(
+                "update emails set folders = ? where account = ? and id = ?",
+                [(json.dumps(sorted(names)), account, email_id) for email_id, names in folders_by_id.items()],
+            )
+
+    def folders_for(self, keys):
+        """{(account, id): [folder names]} for the given emails."""
+        result = {}
+        for account, email_id in keys:
+            row = self._read_one("select folders from emails where account = ? and id = ?", (account, email_id))
+            result[(account, email_id)] = json.loads(row[0]) if row and row[0] else []
+        return result
+
+    def folder_names(self):
+        names = set()
+        for (folders,) in self._read_all("select distinct folders from emails"):
+            names.update(json.loads(folders or "[]"))
+        return sorted(names)
+
+    def emails_in_folder(self, name, limit=10):
+        """Most recent emails in any folder whose name contains every word of
+        `name`. Returns (matching folder names, total count, rows)."""
+        words = name.lower().split()
+        matched = sorted(n for n in self.folder_names() if all(w in n.lower() for w in words))
+        if not matched:
+            return [], 0, []
+        rows = [
+            {"account": r[0], "email_id": r[1], "date": r[2], "sender": r[3], "subject": r[4],
+             "snippet": r[5], "folders": json.loads(r[6] or "[]")}
+            for r in self._read_all("select account, id, date, sender, subject, snippet, folders from emails")
+        ]
+        inside = sorted((r for r in rows if set(r["folders"]) & set(matched)), key=lambda r: r["date"], reverse=True)
+        return matched, len(inside), inside[:limit]
+
+    def _read_all(self, sql, params=()):
+        try:
+            return self.db.execute(sql, params).fetchall()
+        except sqlite3.OperationalError:  # read-only store before the first sync
+            return []
+
+    def _read_one(self, sql, params=()):
+        rows = self._read_all(sql, params)
+        return rows[0] if rows else None
 
     # --- events ---
 

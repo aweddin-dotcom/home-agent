@@ -34,7 +34,7 @@ def to_gmail_message(fixture):
     return {
         "id": fixture["id"],
         "threadId": "t-" + fixture["id"],
-        "labelIds": ["INBOX"],
+        "labelIds": fixture.get("labels", ["INBOX"]),
         "snippet": body_text[:80],
         "internalDate": "1790000000000",
         "payload": payload,
@@ -64,13 +64,31 @@ class _Call:
         return self.result
 
 
-class FakeGmail:
-    """Just enough of the Gmail API client for fetch_messages()."""
+GMAIL_LABELS = [
+    {"id": "INBOX", "name": "INBOX", "type": "system"},
+    {"id": "UNREAD", "name": "UNREAD", "type": "system"},
+    {"id": "CATEGORY_PROMOTIONS", "name": "CATEGORY_PROMOTIONS", "type": "system"},
+    {"id": "Label_travel", "name": "Travel stuff", "type": "user"},
+    {"id": "Label_receipts", "name": "Receipts", "type": "user"},
+]
 
-    def __init__(self, messages, page_size=3):
+
+class _Labels:
+    def __init__(self, labels):
+        self.labels = labels
+
+    def list(self, userId):
+        return _Call({"labels": self.labels})
+
+
+class FakeGmail:
+    """Just enough of the Gmail API client for fetch_messages() and fetch_label_map()."""
+
+    def __init__(self, messages, page_size=3, labels=GMAIL_LABELS):
         self.by_id = {m["id"]: m for m in messages}
         self.ids = [m["id"] for m in messages]
         self.page_size = page_size
+        self.label_defs = labels
         self.fetched = []
 
     def users(self):
@@ -79,17 +97,23 @@ class FakeGmail:
     def messages(self):
         return self
 
-    def list(self, userId, q, maxResults):
-        return self._page(0)
+    def labels(self):
+        return _Labels(self.label_defs)
 
-    def _page(self, start):
-        page = self.ids[start : start + self.page_size]
+    def list(self, userId, q, maxResults, labelIds=None):
+        if labelIds:
+            return self._page(0, [i for i in self.ids if labelIds[0] in self.by_id[i].get("labelIds", [])])
+        return self._page(0, self.ids)
+
+    def _page(self, start, ids):
+        page = ids[start : start + self.page_size]
         call = _Call({"messages": [{"id": i} for i in page]})
-        call.next_start = start + self.page_size if start + self.page_size < len(self.ids) else None
+        call.ids = ids
+        call.next_start = start + self.page_size if start + self.page_size < len(ids) else None
         return call
 
     def list_next(self, request, response):
-        return None if request.next_start is None else self._page(request.next_start)
+        return None if request.next_start is None else self._page(request.next_start, request.ids)
 
     def get(self, userId, id, format):
         self.fetched.append(id)

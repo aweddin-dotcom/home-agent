@@ -43,7 +43,7 @@ MESSAGES = [
                                       "From: Alex Morgan\nSent: Monday, September 21, 2026\nTo: Service\n"
                                       "Can I bring the car in Tuesday?"),
     message("o-3", "FW: Concert tickets", "Sharing these.\n\n________________________________\n"
-                                           "From: Box Office\nSent: Friday\n\nTwo seats, row F, November 14."),
+                                           "From: Box Office\nSent: Friday\n\nTwo seats, row F, November 14.", folder="travel"),
     message("o-4", "Win a prize", "Click here", folder="junk"),
     message("o-5", "Old newsletter", "Deleted", folder="deleted"),
     message("o-6", "Unsent", "Draft text", isDraft=True),
@@ -90,11 +90,22 @@ class FakeGraph:
             return httpx.Response(200, json={"id": folders[path]})
         if path == "/me/mailFolders/drafts":
             return httpx.Response(404, json={"error": {"code": "ErrorItemNotFound"}})
+        if path == "/me/mailFolders":
+            return httpx.Response(200, json={"value": [
+                {"id": "inbox", "displayName": "Inbox", "childFolderCount": 1},
+                {"id": "junk", "displayName": "Junk Email", "childFolderCount": 0},
+                {"id": "deleted", "displayName": "Deleted Items", "childFolderCount": 0},
+            ]})
+        if path == "/me/mailFolders/inbox/childFolders":
+            return httpx.Response(200, json={"value": [
+                {"id": "travel", "displayName": "Travel stuff", "childFolderCount": 0},
+            ]})
         if path == "/me/messages":
-            assert request.headers["Prefer"] == 'outlook.body-content-type="text"'
             if "skip" not in params:  # first page; later pages come from nextLink
                 assert params["$orderby"] == "receivedDateTime desc"
                 assert params["$filter"].startswith("receivedDateTime ge ")
+                if "body" in params.get("$select", "body"):
+                    assert request.headers["Prefer"] == 'outlook.body-content-type="text"'
             start = int(params.get("skip", 0))
             page = {"value": MESSAGES[start : start + 2]}
             if start + 2 < len(MESSAGES):

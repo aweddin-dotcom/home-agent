@@ -96,8 +96,18 @@ def main():
     schedule = settings.retrieval()["sync"]
     log(f"Syncing every {schedule['interval_minutes']} minutes; "
         f"folder names every {schedule['folders_every_minutes']} minutes.")
+    from services.digest.build import maybe_build
+
+    def cycle(refresh_folders):
+        failed = run_once(refresh_folders=refresh_folders, log=log)
+        try:
+            maybe_build(log=log)  # the morning digest, once its time has passed
+        except Exception as error:  # noqa: BLE001 - a digest failure mustn't stop syncing
+            log(f"Digest failed: {type(error).__name__}: {error}")
+        return failed
+
     run_forever(
-        lambda refresh_folders: run_once(refresh_folders=refresh_folders, log=log),
+        cycle,
         schedule["interval_minutes"],
         schedule["folders_every_minutes"],
         # After a reboot the containers can start before Ollama, which is

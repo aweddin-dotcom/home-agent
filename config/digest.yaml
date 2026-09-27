@@ -1,0 +1,33 @@
+# Daily digest settings. The human-readable spec is docs/digest.md; keep the
+# rules here in step with it. Committed: no names or addresses (people are
+# described by role; names come from data/profile/about-me.md).
+
+schedule:
+  weekdays: "06:30"
+  weekends: "07:00"
+
+# The first digest covers this many hours of mail; later ones cover
+# everything since the previous digest.
+first_lookback_hours: 36
+max_emails_to_sort: 80   # newest first; each is one model call
+
+max_items:
+  needs_attention: 5
+  coming_up: 5
+  worth_knowing: 3
+
+# Mail in these folders/labels is set aside without asking the model.
+skip_folders: [Promotions, Social, Forums, Sent, Sent Items, Spam, Junk Email, Drafts]
+
+# What counts as "needs attention" (docs/digest.md, section 3).
+needs_attention:
+  - Direct questions or requests from family members
+  - A bill due this week that needs to be paid
+  - An event the user is registered for that changed schedule or was cancelled
+  - Anything with a deadline, payment due, or appointment change
+  - Anything involving money, health, or the kids' school
+
+# Never needs attention.
+never:
+  - Newsletters, promotions, marketing
+  - Routine automated notifications

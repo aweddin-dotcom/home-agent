@@ -53,6 +53,24 @@ def retrieval():
     return load_config("retrieval_settings.yaml")
 
 
+def digest():
+    return load_config("digest.yaml")
+
+
+PROFILE_PATH = Path(os.environ.get("HOME_AGENT_PROFILE", DATA_DIR / "profile" / "about-me.md"))
+
+
+def profile_text(limit=4000):
+    """The user's about-me notes, if written, without the template's comments.
+    Personal data: only ever given to the local model."""
+    import re
+
+    if not PROFILE_PATH.is_file():
+        return ""
+    text = re.sub(r"<!--.*?-->", "", PROFILE_PATH.read_text(encoding="utf-8"), flags=re.DOTALL)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()[:limit]
+
+
 def accounts(include_disabled=False):
     """Accounts from config/accounts.yaml, keyed by label, in file order."""
     configured = load_config("accounts.yaml").get("accounts") or {}

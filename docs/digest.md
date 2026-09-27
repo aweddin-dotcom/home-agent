@@ -12,6 +12,13 @@ How to fill this in:
 - Lines marked DECIDE need a choice from you.
 -->
 
+<!--
+Implemented (version 1): services/digest/build.py, with the schedule, limits
+and rules in config/digest.yaml; keep those in step with this file. Not yet:
+Waiting on others, links to each source, phone notifications, feedback, and
+the between-digest alerts (section 5).
+-->
+
 ## 1. Delivery
 
 - **When:** 6:30am, weekdays, 7:00 am weekends. <!-- DECIDE: time; different on weekends? skip weekends? -->

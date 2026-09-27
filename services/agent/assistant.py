@@ -5,6 +5,7 @@ standalone question using the conversation, then answered like a single
 question: route, look up calendar and email, answer from what was found.
 """
 
+import re
 from dataclasses import dataclass
 from datetime import datetime
 
@@ -32,6 +33,23 @@ def is_task_request(text):
     """Open WebUI's own background requests (chat titles, tags, follow-up
     suggestions) start with '### Task:'. They skip email and calendar."""
     return text.lstrip().startswith("### Task:")
+
+
+DIGEST_REQUEST = re.compile(r"\b(digest|morning (summary|briefing|brief)|daily (summary|briefing|brief))\b", re.I)
+
+
+def is_digest_request(text):
+    return bool(DIGEST_REQUEST.search(text))
+
+
+def digest_reply(store, tz):
+    digest = store.latest_digest() if store else None
+    if not digest:
+        return ("There's no digest yet. It's built each morning by the sync worker "
+                "(config/digest.yaml); to build one now, run: python -m services.digest.build")
+    built = datetime.fromisoformat(digest["created_at"]).astimezone(tz)
+    clock = f"{built:%I:%M%p}".lstrip("0").lower()
+    return f"{digest['body']}\n\n_Built {built:%a %b} {built.day}, {clock}_"
 
 
 def history_text(messages):
@@ -77,6 +95,10 @@ class Assistant:
             yield from self.chat.stream_messages(
                 [{"role": m["role"], "content": message_text(m)} for m in messages]
             )
+            return
+
+        if is_digest_request(question):
+            yield digest_reply(self.open_mail() if self.open_mail else None, self.tz)
             return
 
         earlier = messages[: len(messages) - 1 - messages[::-1].index(user_messages[-1])]

@@ -12,7 +12,14 @@ from dataclasses import asdict
 from datetime import datetime, timezone
 from pathlib import Path
 
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
+
+DIGESTS_TABLE = """create table if not exists digests (
+    day text primary key,  -- YYYY-MM-DD, the user's local date
+    created_at text,
+    covers_from text,      -- mail received from this moment was considered
+    body text
+)"""
 
 SYNC_STATUS_TABLE = """create table if not exists sync_status (
     account text primary key,
@@ -56,12 +63,13 @@ create table events (
     synced_at text,
     primary key (account, calendar_id, id)
 );
-""" + SYNC_STATUS_TABLE + ";\n"
+""" + SYNC_STATUS_TABLE + ";\n" + DIGESTS_TABLE + ";\n"
 
 # Upgrades from one version to the next, applied in place.
 MIGRATIONS = {
     2: ["alter table emails add column folders text default '[]'"],
     3: [SYNC_STATUS_TABLE],
+    4: [DIGESTS_TABLE],
 }
 
 EVENT_COLUMNS = (
@@ -278,6 +286,29 @@ class Store:
         return {
             r[0]: {"last_attempt": r[1], "last_success": r[2], "ok": bool(r[3]), "detail": r[4]} for r in rows
         }
+
+    # --- digests ---
+
+    def emails_since(self, moment):
+        """Emails received at or after a moment, newest first."""
+        return sorted((r for r in self._email_rows() if _moment(r) >= moment), key=_moment, reverse=True)
+
+    def save_digest(self, day, body, covers_from, created_at=None):
+        with self.db:
+            self.db.execute(
+                "insert or replace into digests (day, created_at, covers_from, body) values (?, ?, ?, ?)",
+                (day.isoformat(), created_at or _now(), covers_from, body),
+            )
+
+    def _digest(self, where, params=()):
+        row = self._read_one(f"select day, created_at, covers_from, body from digests {where}", params)
+        return dict(zip(("day", "created_at", "covers_from", "body"), row)) if row else None
+
+    def digest_for(self, day):
+        return self._digest("where day = ?", (day.isoformat(),))
+
+    def latest_digest(self):
+        return self._digest("order by day desc limit 1")
 
     # --- accounts ---
 

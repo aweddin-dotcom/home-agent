@@ -67,6 +67,16 @@ also recovers from a manual `docker compose down`). The sync worker waits
 for Ollama before each run, so start-up order doesn't matter. Log:
 `logs/startup.log`. Undo with `python scripts/autostart.py remove`.
 
+### Daily digest
+
+The sync worker builds the digest (docs/digest.md) on the first sync after
+6:30am on weekdays and 7:00am on weekends (`config/digest.yaml`, which also
+holds the needs-attention rules). The local model sorts each new email into
+needs attention / worth knowing / set aside, using your about-me notes if
+you've written them; the layout is assembled in code. Read it by asking the
+chat for "my digest". To build today's now: `python -m services.digest.build`
+(prints it; runs in the sync-worker container).
+
 ### Chat in the browser
 
 Open WebUI (http://127.0.0.1:3000) offers the assistant as the model

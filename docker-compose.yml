@@ -75,11 +75,15 @@ services:
       - HOME_AGENT_TOKENS=/tokens
       # Copied into the volume on first start, so nothing is re-downloaded.
       - HOME_AGENT_SEED_DB=/seed/structured.db
+      - HOME_AGENT_PROFILE=/profile/about-me.md
     volumes:
       - ./config:/config:ro
       - db:/db
       - ./data/tokens:/tokens
       - ./data/structured.db:/seed/structured.db:ro
+      # The user's about-me notes, given to the local model when sorting mail
+      # for the digest (who is family, etc.).
+      - ./data/profile:/profile:ro
     secrets:
       - icloud_apple_id
       - icloud_app_password

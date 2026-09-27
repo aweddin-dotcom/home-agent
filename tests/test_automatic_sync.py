@@ -90,7 +90,7 @@ def test_version_3_store_gains_sync_status_in_place(tmp_path):
     store.db.close()
     upgraded = Store(path)
     assert not upgraded.rebuilt
-    assert upgraded.db.execute("pragma user_version").fetchone()[0] == SCHEMA_VERSION == 4
+    assert upgraded.db.execute("pragma user_version").fetchone()[0] == SCHEMA_VERSION
     assert upgraded.sync_statuses() == {}
 
 

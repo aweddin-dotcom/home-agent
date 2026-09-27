@@ -11,6 +11,22 @@ router ports are forwarded.
   controls it can add devices to the tailnet.
 - MagicDNS on, so devices are reachable by name.
 
+## Laptop (interim host)
+
+- Open WebUI is served to the tailnet with
+  `tailscale serve --bg --http=80 3000`: plain HTTP inside the tailnet
+  (the Tailscale tunnel encrypts it end to end), so no certificate is
+  issued and no names are published. The setting persists across reboots.
+  Undo: `tailscale serve --http=80 off`.
+- Reach it from a phone or tablet with Tailscale connected at
+  `http://<laptop name>/` (MagicDNS). Only 3000 is served; the chat API,
+  Qdrant, and everything else stay on 127.0.0.1.
+- HTTPS option: enable HTTPS Certificates in the Tailscale admin console,
+  then `tailscale serve --bg --https=443 3000` (and turn the HTTP one off).
+  Needed for installing it as a home-screen app and for microphone use.
+  Trade-off: certificates are logged publicly (Certificate Transparency),
+  which publishes the machine and tailnet names.
+
 ## Mac Studio setup day
 
 1. Wired Ethernet, on the UPS.

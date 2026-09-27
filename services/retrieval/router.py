@@ -40,7 +40,10 @@ start_date, end_date: the dates the question is about, as YYYY-MM-DD,
 inclusive. Copy them from the named ranges and date table; don't calculate.
 A weekday name on its own ("Thursday", "Saturday morning") means the one
 marked "coming" in the table. A single day has start_date equal to
-end_date. Only fill in dates when the question mentions or implies a time.
+end_date. For an email question, dates mean when the email arrived ("the
+email from Sept 24th", "what did I get yesterday?"). A date without a year
+is the most recent one not after today, unless the question is clearly
+about the future. Only fill in dates when the question mentions or implies a time.
 "When is X?" has no dates: use null for both and put X in
 calendar_keywords.
 

@@ -39,7 +39,7 @@ containers are running:
 | `python scripts/google_auth.py grant ACCOUNT ingestion` | One-time per Google account: approve read-only Gmail and Calendar access in the browser. ACCOUNT is a label from `config/accounts.yaml`. |
 | `python scripts/microsoft_auth.py grant ACCOUNT ingestion` | Same, for an Outlook/Hotmail account: prints a code to enter at microsoft.com/devicelogin. |
 | `python scripts/icloud_check.py` | For iCloud: after storing the Apple ID and app-specific password with `secrets_cli.py`, check the sign-in and list your calendars. |
-| `python -m services.ingestion.sync` | Sync now, instead of waiting for the next automatic run. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs. Runs inside the `sync-worker` container. |
+| `python -m services.ingestion.sync` | Sync now, instead of waiting for the next automatic run. `--account LABEL` syncs one; `--remove LABEL` deletes one account's local copy; `--rebuild` clears everything and re-syncs; `--stats [--date YYYY-MM-DD]` shows counts per account (no content). Runs inside the `sync-worker` container. |
 | `python -m services.retrieval.search "question"` | List the emails that best match a question (runs in the `agent-api` container) |
 | `python -m services.retrieval.ask "question"` | Answer a question from email and calendar, with sources |
 | `python scripts/try_fixtures.py` | Ask sample questions against the invented test data, with the real models. For checking quality after changes or comparing models. |

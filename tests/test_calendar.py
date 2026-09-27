@@ -284,6 +284,8 @@ ROUTING_CASES = [
     ("What did the contractor say about the timeline?", "email", None),
     ("What's in my travel stuff folder?", "email", "folder:travel"),
     ("Anything new under my Receipts label?", "email", "folder:receipts"),
+    ("Can you find the email I got on September 24th?", "email", ("2026-09-24", "2026-09-24")),
+    ("What emails came in yesterday?", "email", ("2026-09-26", "2026-09-26")),
 ]
 
 

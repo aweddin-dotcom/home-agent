@@ -129,6 +129,28 @@ def run_once(only_account=None, refresh_folders=True, log=print):
     )
 
 
+def print_stats(day=None):
+    """Counts only, for checking what's stored without looking at content."""
+    from datetime import date
+
+    from .store import Store
+
+    store = Store(settings.STRUCTURED_DB, readonly=True)
+    day = date.fromisoformat(day) if day else None
+    statuses = store.sync_statuses()
+    for account, s in sorted(store.stats(settings.TIMEZONE, day).items()):
+        line = f"{account}: {s['emails']} emails"
+        if s["emails"]:
+            line += f" received {s['oldest']} to {s['newest']}"
+        line += f", {s.get('events', 0)} events"
+        if day:
+            line += f"; {s['on_day']} emails received on {day}"
+        status = statuses.get(account)
+        if status:
+            line += f". Last sync {'ok' if status['ok'] else 'FAILED'} at {status['last_attempt'][:16]}"
+        print(line)
+
+
 def main(argv=None):
     from services.common.containers import delegate_to_container
 
@@ -141,8 +163,13 @@ def main(argv=None):
     group.add_argument("--account", help="sync only this account")
     group.add_argument("--remove", metavar="ACCOUNT", help="delete this account's local copy and stop")
     group.add_argument("--rebuild", action="store_true", help="clear the local copy of everything, then sync")
+    group.add_argument("--stats", action="store_true", help="show counts per account (no content) and stop")
+    parser.add_argument("--date", help="with --stats: also count emails received on this day (YYYY-MM-DD)")
     args = parser.parse_args(argv)
 
+    if args.stats:
+        print_stats(args.date)
+        return
     if args.remove or args.rebuild:
         store, index = open_store_and_index(settings.retrieval())
         if args.remove:

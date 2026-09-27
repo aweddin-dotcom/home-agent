@@ -74,6 +74,14 @@ def _now():
     return datetime.now(timezone.utc).isoformat()
 
 
+def _moment(row):
+    """An email's received time, comparable across providers and zones."""
+    try:
+        return datetime.fromisoformat(row["date"]).astimezone(timezone.utc)
+    except (TypeError, ValueError):
+        return datetime.min.replace(tzinfo=timezone.utc)
+
+
 class Store:
     def __init__(self, path, readonly=False):
         self.rebuilt = False
@@ -155,13 +163,51 @@ class Store:
         matched = sorted(n for n in self.folder_names() if all(w in n.lower() for w in words))
         if not matched:
             return [], 0, []
-        rows = [
+        inside = sorted(
+            (r for r in self._email_rows() if set(r["folders"]) & set(matched)), key=_moment, reverse=True
+        )
+        return matched, len(inside), inside[:limit]
+
+    def _email_rows(self):
+        return [
             {"account": r[0], "email_id": r[1], "date": r[2], "sender": r[3], "subject": r[4],
              "snippet": r[5], "folders": json.loads(r[6] or "[]"), "body": r[7]}
             for r in self._read_all("select account, id, date, sender, subject, snippet, folders, body from emails")
         ]
-        inside = sorted((r for r in rows if set(r["folders"]) & set(matched)), key=lambda r: r["date"], reverse=True)
-        return matched, len(inside), inside[:limit]
+
+    def emails_between(self, start, end, tz, limit=15):
+        """Emails received from `start` through `end` (dates, in the user's time
+        zone), newest first. Returns (total count, rows). Dates are compared as
+        moments, since providers write them in different zones."""
+        inside = []
+        for row in self._email_rows():
+            try:
+                received = datetime.fromisoformat(row["date"]).astimezone(tz).date()
+            except (TypeError, ValueError):
+                continue
+            if start <= received <= end:
+                inside.append(row)
+        inside.sort(key=_moment, reverse=True)
+        return len(inside), inside[:limit]
+
+    def stats(self, tz, day=None):
+        """Counts only, per account: emails, oldest/newest received date, events,
+        and (with `day`) emails received that day. No content."""
+        result = {}
+        for row in self._email_rows():
+            entry = result.setdefault(row["account"], {"emails": 0, "oldest": None, "newest": None, "on_day": 0})
+            try:
+                received = datetime.fromisoformat(row["date"]).astimezone(tz).date()
+            except (TypeError, ValueError):
+                continue
+            entry["emails"] += 1
+            entry["oldest"] = min(filter(None, [entry["oldest"], received]))
+            entry["newest"] = max(filter(None, [entry["newest"], received]))
+            if day and received == day:
+                entry["on_day"] += 1
+        for account, count in self._read_all("select account, count(*) from events group by account"):
+            result.setdefault(account, {"emails": 0, "oldest": None, "newest": None, "on_day": 0})["events"] = count
+        return result
 
     def _read_all(self, sql, params=()):
         try:

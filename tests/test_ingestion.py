@@ -1,3 +1,4 @@
+import pytest
 from datetime import datetime, timezone
 
 from qdrant_client import QdrantClient
@@ -253,3 +254,59 @@ def test_readonly_store_before_first_sync(tmp_path):
     path = tmp_path / "structured.db"
     path.touch()
     assert Store(path, readonly=True).all_events() == []
+
+
+# --- Google rate limits -------------------------------------------------------
+
+
+def http_error(status, content):
+    import httplib2
+    from googleapiclient.errors import HttpError
+
+    return HttpError(httplib2.Response({"status": str(status)}), content)
+
+
+RATE_LIMITED = http_error(403, b'{"error": {"errors": [{"reason": "rateLimitExceeded"}]}}')
+
+
+class FlakyRequest:
+    def __init__(self, failures):
+        self.failures = list(failures)
+
+    def execute(self):
+        if self.failures:
+            raise self.failures.pop(0)
+        return {"ok": True}
+
+
+def test_rate_limit_waits_and_retries():
+    from services.ingestion.google_api import execute
+
+    waits, logs = [], []
+    request = FlakyRequest([RATE_LIMITED, http_error(429, b"")])
+    assert execute(request, log=logs.append, sleep=waits.append) == {"ok": True}
+    assert waits == [15, 30]
+    assert "waiting 15s" in logs[0]
+
+
+def test_other_errors_are_not_retried():
+    from googleapiclient.errors import HttpError
+
+    from services.ingestion.google_api import execute
+
+    waits = []
+    forbidden = http_error(403, b'{"error": {"errors": [{"reason": "insufficientPermissions"}]}}')
+    with pytest.raises(HttpError):
+        execute(FlakyRequest([forbidden]), log=quiet, sleep=waits.append)
+    assert waits == []
+
+
+def test_gives_up_after_the_last_wait():
+    from googleapiclient.errors import HttpError
+
+    from services.ingestion.google_api import execute
+
+    waits = []
+    with pytest.raises(HttpError):
+        execute(FlakyRequest([RATE_LIMITED] * 3), log=quiet, sleep=waits.append, waits=(1, 2))
+    assert waits == [1, 2]

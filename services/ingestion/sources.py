@@ -15,8 +15,9 @@ class GoogleSource:
     has_email = True
     has_calendar = True
 
-    def __init__(self, account, gmail, calendar):
+    def __init__(self, account, gmail, calendar, log=print):
         self.account = account
+        self.log = log
         self.gmail = gmail
         self.calendar = calendar
 
@@ -35,10 +36,10 @@ class GoogleSource:
 
     def emails(self, days, max_emails, skip_ids):
         query = f"newer_than:{days}d -in:drafts"
-        return fetch_messages(self.gmail, self.account, query, max_emails, skip_ids)
+        return fetch_messages(self.gmail, self.account, query, max_emails, skip_ids, self.log)
 
     def events(self, now, days_back, days_ahead):
-        return fetch_events(self.calendar, self.account, now, days_back, days_ahead)
+        return fetch_events(self.calendar, self.account, now, days_back, days_ahead, self.log)
 
 
 PROVIDERS = {"google": GoogleSource}

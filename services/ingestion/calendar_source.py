@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import timedelta
 
 from .cleaners import clean_body, html_to_text
+from .google_api import execute
 
 
 @dataclass
@@ -45,12 +46,12 @@ def parse_event(event, calendar_id, account):
     )
 
 
-def fetch_events(service, account, now, days_back, days_ahead):
+def fetch_events(service, account, now, days_back, days_ahead, log=print):
     """All events, on every calendar the account can see, within a window around now."""
     time_min = (now - timedelta(days=days_back)).isoformat()
     time_max = (now + timedelta(days=days_ahead)).isoformat()
     events = []
-    for calendar in service.calendarList().list().execute().get("items", []):
+    for calendar in execute(service.calendarList().list(), log).get("items", []):
         api = service.events()
         request = api.list(
             calendarId=calendar["id"],
@@ -61,7 +62,7 @@ def fetch_events(service, account, now, days_back, days_ahead):
             maxResults=250,
         )
         while request is not None:
-            response = request.execute()
+            response = execute(request, log)
             events.extend(parse_event(e, calendar["id"], account) for e in response.get("items", []))
             request = api.list_next(request, response)
     return events

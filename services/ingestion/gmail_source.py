@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from email.utils import formataddr, getaddresses, parsedate_to_datetime
 
 from .cleaners import clean_body, html_to_text
+from .google_api import execute
 
 
 @dataclass
@@ -77,18 +78,19 @@ def parse_message(msg, account):
     )
 
 
-def fetch_messages(service, account, query, max_messages, skip_ids=frozenset()):
+def fetch_messages(service, account, query, max_messages, skip_ids=frozenset(), log=print):
     """Yield parsed emails matching a Gmail search, newest first, skipping known ids."""
     messages = service.users().messages()
     request = messages.list(userId="me", q=query, maxResults=min(500, max_messages))
     seen = 0
     while request is not None:
-        response = request.execute()
+        response = execute(request, log)
         for ref in response.get("messages", []):
             seen += 1
             if seen > max_messages:
                 return
             if ref["id"] in skip_ids:
                 continue
-            yield parse_message(messages.get(userId="me", id=ref["id"], format="full").execute(), account)
+            message = execute(messages.get(userId="me", id=ref["id"], format="full"), log)
+            yield parse_message(message, account)
         request = messages.list_next(request, response)

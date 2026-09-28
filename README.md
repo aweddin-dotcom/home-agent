@@ -99,6 +99,19 @@ statement, statement-upload reminders (from "statement ready" emails and
 stale uploads), and condensed news about your holdings. If the app isn't
 running, answers and the digest say so.
 
+### Disc golf (UDisc)
+
+UDisc only shows stats in its phone app, but it can export every scorecard
+as a CSV (the same file UDisc Analyzer reads). Save that export in
+`data/udisc/` (never committed); chat reads the newest `.csv` there, so
+drop in a fresh export whenever you want recent rounds included. Questions
+like "how many times have I played Maple Hill, and what's my best score on
+the red layout?" are answered from stats computed in code: rounds per
+course and layout, best, worst, and average (unfinished rounds left out),
+ratings, recent rounds, and per-hole averages when you ask about holes.
+Answers say the date of the export. Your rounds are the ones under the name
+on the most scorecards; set `UDISC_PLAYER` in `.env` if that's someone else.
+
 ### Chat in the browser
 
 Open WebUI (http://127.0.0.1:3000) offers the assistant as the model
@@ -129,7 +142,7 @@ rebuilt from the providers, so it never needs backing up.
 
 Clone the repo, install Ollama for macOS, set `MODEL_PROFILE=mac`, and pick
 the chat model in config/models.yaml. Copy over by hand only what you wrote
-yourself in `data/` (profile, question set); synced email and calendar are
+yourself in `data/` (profile, question set, UDisc export); synced email and calendar are
 rebuilt by granting access again and running the sync. Then follow
 docs/network.md and docs/secrets.md.
 

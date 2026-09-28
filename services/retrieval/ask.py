@@ -18,7 +18,7 @@ from .router import route
 from .search import build_from_settings, search
 from .structured_query import describe_time, format_calendar, lookup
 
-SYSTEM_PROMPT = """You answer the user's questions about their email, calendar, and investments.
+SYSTEM_PROMPT = """You answer the user's questions about their email, calendar, investments, and disc golf.
 Today is {today}.
 
 - Use only the calendar events and emails provided. If they don't contain
@@ -48,6 +48,10 @@ Today is {today}.
   balances are as of each account's latest statement. Give information,
   not advice; for deeper analysis, suggest the Portfolio Analyzer's AI
   advisor. Cite news like [N1].
+- Disc golf stats come from the user's UDisc scorecards and are already
+  computed: use the numbers exactly as given, and name the course and
+  layout. Scores are strokes with +/- par in parentheses (E is even par).
+  Mention that the stats run through the date the export was saved.
 - For purchases, the order emails listed like [O1] are what the user
   actually bought. A store's marketing about similar products is not a
   purchase.
@@ -84,6 +88,7 @@ class Context:
     portfolio: str = ""  # "used", "unavailable", or "" when not asked
     profile: str = ""  # "used", "empty", or "" when not asked
     news_rows: list = field(default_factory=list)
+    discgolf: str = ""  # what the disc golf lookup used, "none", or "" when not asked
 
 
 @dataclass
@@ -287,11 +292,48 @@ def add_portfolio(context, portfolio, with_news, question=""):
                                 "answer, so investment data isn't available right now.")
 
 
+def add_discgolf(context, discgolf, question):
+    """The user's disc golf rounds, from their UDisc export (data/udisc/)."""
+    from services.discgolf.scorecards import names_a_time, stats_section
+
+    try:
+        scorecards = discgolf() if callable(discgolf) else discgolf
+    except Exception:  # noqa: BLE001 - a bad export must not break other answers
+        scorecards = None
+    if not scorecards or not scorecards.rounds:
+        context.discgolf = "none"
+        context.sections.append("Disc golf: no UDisc scorecard export found (the CSV goes in data/udisc/).")
+        return
+    r = context.route
+    start, end = (r.start, r.end) if names_a_time(question) else (None, None)
+    if start is None and r.sources == ["disc_golf"]:
+        r.start = r.end = None  # so the footer doesn't show dates that weren't used
+    text, courses = stats_section(scorecards, question, start, end)
+    context.sections.append(text)
+    used = ", ".join(courses) if courses else "all courses"
+    context.discgolf = f"{used}; export saved {scorecards.exported}"
+
+
 def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None, portfolio=None,
-           profile=None):
+           profile=None, discgolf=None):
     """`mail` (a Store) adds folder names, folder and date listings; optional."""
     chosen = route(question, chat, today)
     context = Context(chosen)
+    if discgolf is not None and "disc_golf" not in chosen.sources:
+        # A small router can miss "how did I do at Maple Hill?"; the course
+        # names in the user's scorecards catch it.
+        from services.discgolf.scorecards import mentions_disc_golf
+
+        try:
+            scorecards = discgolf() if callable(discgolf) else discgolf
+        except Exception:  # noqa: BLE001
+            scorecards = None
+        if mentions_disc_golf(question, scorecards):
+            chosen.sources = [s for s in chosen.sources if s != "general"] + ["disc_golf"]
+    if "disc_golf" in chosen.sources:
+        add_discgolf(context, discgolf, question)
+        if set(chosen.sources) <= {"disc_golf"}:
+            return context
     if chosen.sources == ["general"]:
         return context  # answered from the model's own knowledge; nothing to look up
     if "profile" in chosen.sources:
@@ -407,6 +449,9 @@ def format_sources(context, tz):
     if context.portfolio:
         lines.append("Portfolio Analyzer: " + ("summary of accounts and holdings" if context.portfolio == "used"
                                                else "not available"))
+    if context.discgolf:
+        lines.append("UDisc scorecards: " + ("no export found in data/udisc/" if context.discgolf == "none"
+                                             else context.discgolf))
     if context.news_rows:
         lines.append("News:")
         lines.extend(f"  [N{n}] {(a.get('published') or '')[:10]}  {a.get('title', '')}  ({a.get('publisher', '')})"
@@ -465,7 +510,7 @@ def main():
     from services.portfolio.client import client_from_settings
 
     context = gather(question, embedder, index, chat, top_k, store.all_events(), today, tz, store,
-                     client_from_settings(), settings.profile_text)
+                     client_from_settings(), settings.profile_text, settings.discgolf)
     print(chat.complete(*answer_prompt(question, context, today)))
     print()
     print(format_sources(context, tz))

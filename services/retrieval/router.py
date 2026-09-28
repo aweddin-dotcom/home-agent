@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar", "portfolio", "profile", "general")
+SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "general")
 # What to search when the model's reply is unusable: the user's own data.
 DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
@@ -50,8 +50,12 @@ sources: which to search.
   who they are, family and other people in their life, work, routines,
   priorities, goals, preferences ("what do you know about me?", "who is
   my sister?", "what are my goals this year?").
+- "disc_golf" for the user's own disc golf rounds, from their UDisc
+  scorecards: courses and layouts played, how often, scores, ratings,
+  holes ("how many times have I played Maple Hill?", "what's my best
+  score on the red layout?", "how did I play last month?").
 - "general" alone, only for questions that clearly aren't about the user's
-  own messages, schedule, plans, purchases, people, or accounts: facts,
+  own messages, schedule, plans, purchases, people, accounts, or games: facts,
   definitions, how-to, conversions, arithmetic ("how many ounces in a
   cup?"). If it could be about the user's life, use email and calendar.
 
@@ -61,7 +65,8 @@ A weekday name on its own ("Thursday", "Saturday morning") means the one
 marked "coming" in the table. A single day has start_date equal to
 end_date. For an email question, dates mean when the email arrived ("the
 email from Sept 24th", "what did I get yesterday?"). For those, a date
-without a year is the most recent one not after today. For anything else
+without a year is the most recent one not after today. The same goes for
+disc golf: dates mean when rounds were played. For anything else
 (plans, trips, appointments), a month or date without a year is the one in
 the Months list, which runs forward from today. Named periods without dates
 mean their usual month: spring break is March, Thanksgiving week is late
@@ -108,6 +113,9 @@ def named_ranges(today):
     else:
         saturday = today + timedelta(days=5 - today.weekday())
         weekend = (max(saturday, today), saturday + timedelta(days=1))
+    month_start = today.replace(day=1)
+    next_month = (month_start + timedelta(days=32)).replace(day=1)
+    last_month_start = (month_start - timedelta(days=1)).replace(day=1)
     return {
         "today": (today, today),
         "tomorrow": (today + timedelta(days=1),) * 2,
@@ -117,6 +125,10 @@ def named_ranges(today):
         "last week": (week_start - timedelta(days=7), week_end - timedelta(days=7)),
         "this weekend": weekend,
         "next 7 days": (today, today + timedelta(days=7)),
+        "this month": (month_start, next_month - timedelta(days=1)),
+        "last month": (last_month_start, month_start - timedelta(days=1)),
+        "this year": (date(today.year, 1, 1), date(today.year, 12, 31)),
+        "last year": (date(today.year - 1, 1, 1), date(today.year - 1, 12, 31)),
     }
 
 

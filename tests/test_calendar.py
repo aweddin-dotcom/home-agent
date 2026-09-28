@@ -299,6 +299,9 @@ ROUTING_CASES = [
     ("Any news about the stocks I own?", "portfolio", "news"),
     ("What do you know about me from my about-me notes?", "profile", None),
     ("What are my goals for this year?", "profile", None),
+    ("How many times have I played Maple Hill and what's my best score on the red layout?", "disc_golf", None),
+    ("How did my disc golf go last month?", "disc_golf", ("2026-08-01", "2026-08-31")),
+    ("What's my average round rating this year?", "disc_golf", None),
 ]
 
 

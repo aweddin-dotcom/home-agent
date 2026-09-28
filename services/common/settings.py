@@ -71,6 +71,18 @@ def profile_text(limit=4000):
     return re.sub(r"\n{3,}", "\n\n", text).strip()[:limit]
 
 
+UDISC_DIR = Path(os.environ.get("HOME_AGENT_UDISC", DATA_DIR / "udisc"))
+
+
+def discgolf():
+    """The user's disc golf rounds from the newest UDisc export in data/udisc/,
+    or None. UDISC_PLAYER (in .env) names the user when the export has several
+    players; otherwise it's whoever is on the most scorecards."""
+    from services.discgolf.scorecards import load
+
+    return load(UDISC_DIR, os.environ.get("UDISC_PLAYER"))
+
+
 def accounts(include_disabled=False):
     """Accounts from config/accounts.yaml, keyed by label, in file order."""
     configured = load_config("accounts.yaml").get("accounts") or {}

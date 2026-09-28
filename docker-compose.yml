@@ -50,11 +50,14 @@ services:
       - QDRANT_URL=http://qdrant:6333
       - HOME_AGENT_DB=/db/structured.db
       - HOME_AGENT_PROFILE=/profile/about-me.md
+      - HOME_AGENT_UDISC=/udisc
     volumes:
       - ./config:/config:ro
       - db:/db:ro
       # The user's about-me notes, for questions about themselves.
       - ./data/profile:/profile:ro
+      # UDisc scorecard exports (CSV), for disc golf questions.
+      - ./data/udisc:/udisc:ro
     ports:
       - "127.0.0.1:8000:8000"
     extra_hosts:

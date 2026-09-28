@@ -87,8 +87,8 @@ def test_course_and_layout_question():
     assert courses == [MAPLE]
     assert f"{MAPLE}, all layouts together: 5 rounds, 2026-05-02 to 2026-09-20" in text
     assert 'Layout "Red Tees" (4 holes, par 12): 4 rounds on this layout, 1 of them unfinished' in text
-    assert "Best: 11 (-1) on 2026-07-19, rating 905" in text
-    assert "Worst: 14 (+2) on 2026-05-02" in text
+    assert "Best (lowest): 11 (-1) on 2026-07-19, rating 905" in text
+    assert "Worst (highest): 14 (+2) on 2026-05-02" in text
     assert "Average: 12.7 (+0.7)" in text
     assert "Blue Tees" not in text  # only the layout asked about
 
@@ -100,7 +100,7 @@ def test_all_layouts_when_none_is_named():
 
 def test_unfinished_round_is_never_the_best():
     text, _ = stats_section(cards(), "best score at riverside")
-    assert "Best: 15 (+2) on 2025-10-11" in text
+    assert "Best (lowest): 15 (+2) on 2025-10-11" in text
     assert "2026-08-23 1 (-2) (unfinished, 1 holes)" in text
 
 
@@ -115,7 +115,7 @@ def test_overview_without_a_course():
     text, courses = stats_section(cards(), "how's my disc golf going?")
     assert courses == []
     assert "All courses: 7 rounds, 2025-10-11 to 2026-09-20, at 2 courses" in text
-    assert "Best rating: 905 at Maple Hill Disc Golf Course (Red Tees) on 2026-07-19" in text
+    assert "Best rating (highest): 905 at Maple Hill Disc Golf Course (Red Tees) on 2026-07-19" in text
     assert f"Most played: {MAPLE} 5; Riverside Park 2" in text
     assert "export saved 2026-09-21" in text
 
@@ -208,3 +208,31 @@ def test_overview_marks_unfinished_rounds():
     text, _ = stats_section(cards(), "how's my disc golf going?")
     assert "at 2 courses; 2 unfinished" in text
     assert "2026-09-20 Maple Hill Disc Golf Course (Red Tees) 5 (-1) (unfinished, 2 holes)" in text
+
+
+TWO_REDS = """PlayerName,CourseName,LayoutName,StartDate,EndDate,Total,+/-,RoundRating,Hole1,Hole2
+Par,Pine Hollow Park,Red,2026-06-01 0900,,6,,,3,3
+Pat Example,Pine Hollow Park,Red,2026-06-01 0900,,5,-1,900,2,3
+Par,Pine Hollow Park,Blue,2026-06-02 0900,,6,,,3,3
+Pat Example,Pine Hollow Park,Blue,2026-06-02 0900,,8,2,700,4,4
+Par,Otter Creek - Red Course,Red Long,2026-06-03 0900,,6,,,3,3
+Pat Example,Otter Creek - Red Course,Red Long,2026-06-03 0900,,9,3,650,5,4
+Par,Otter Creek - Blue Course,Red Short,2026-06-04 0900,,6,,,3,3
+Pat Example,Otter Creek - Blue Course,Red Short,2026-06-04 0900,,7,1,750,4,3
+"""
+
+
+def test_a_color_in_another_course_name_doesnt_pull_it_in():
+    two = scorecards_from(TWO_REDS, date(2026, 6, 5))
+    assert match_courses("what's my best score on the red layout at pine hollow?", two) == ["Pine Hollow Park"]
+    # A color still picks between courses that share a distinctive word.
+    assert match_courses("what's my best at otter creek red?", two) == ["Otter Creek - Red Course"]
+    assert sorted(match_courses("how often do I play otter creek?", two)) == [
+        "Otter Creek - Blue Course", "Otter Creek - Red Course"]
+
+
+def test_course_best_across_layouts_is_computed():
+    two = scorecards_from(TWO_REDS, date(2026, 6, 5))
+    text, _ = stats_section(two, "what's my best score at pine hollow?")
+    assert "Best round of these layouts (lowest vs par): 5 (-1) on Red on 2026-06-01, rating 900" in text
+    assert "lower is better" in text

@@ -162,15 +162,27 @@ def _words(text):
     return set(re.findall(r"[a-z0-9]+", text.lower()))
 
 
-def _best_matches(question, names):
+# Colors name layouts (and some courses); on their own they're weak evidence
+# of which course a question is about.
+COLORS = {"red", "blue", "white", "gold", "green", "black", "yellow", "orange", "purple", "silver"}
+
+
+def _best_matches(question, names, weak=frozenset()):
+    """The names sharing the most words with the question. Distinctive words
+    count first; `weak` words only break ties, so in "the red layout at
+    Pine Hollow" a course named Pine Hollow beats one with "Red" in its name."""
     asked = _words(question)
-    scored = {name: len({w for w in _words(name) - GENERIC if len(w) >= 3 or w.isdigit()} & asked) for name in names}
-    top = max(scored.values(), default=0)
-    return [name for name, score in scored.items() if score == top] if top else []
+    scored = {}
+    for name in names:
+        hits = {w for w in _words(name) - GENERIC if len(w) >= 3 or w.isdigit()} & asked
+        scored[name] = (len(hits - weak), len(hits & weak))
+    top = max(scored.values(), default=(0, 0))
+    return [name for name, score in scored.items() if score == top] if top != (0, 0) else []
 
 
 def match_courses(question, scorecards):
-    return _best_matches(question, scorecards.all_courses)
+    layout_words = set().union(*(_words(r.layout) for r in scorecards.rounds)) if scorecards.rounds else set()
+    return _best_matches(question, scorecards.all_courses, COLORS | layout_words)
 
 
 def match_layouts(question, layouts):
@@ -239,8 +251,8 @@ def layout_lines(layout, rounds, with_holes):
         worst = max(complete, key=lambda r: (r.vs_par, r.started))
         avg = _average([r.strokes for r in complete])
         avg_rating = _average([r.rating for r in complete])
-        lines += [f"    Best: {_score(best)} on {best.day}{_rating(best.rating)}",
-                  f"    Worst: {_score(worst)} on {worst.day}",
+        lines += [f"    Best (lowest): {_score(best)} on {best.day}{_rating(best.rating)}",
+                  f"    Worst (highest): {_score(worst)} on {worst.day}",
                   f"    Average: {avg:.1f} ({avg - par:+.1f})" + (f", average rating {avg_rating:.0f}" if avg_rating else "")]
     recent = sorted(rounds, key=lambda r: r.started, reverse=True)[:RECENT]
     lines.append("    Most recent: " + "; ".join(
@@ -261,6 +273,12 @@ def course_lines(course, rounds, question, layouts):
     lines = [f"{course}, all layouts together: {len(rounds)} rounds, {_span(rounds)}"]
     by_layout = Counter(r.layout for r in rounds)
     chosen = layouts or [name for name, _ in by_layout.most_common()]
+    complete = [r for r in rounds if r.complete and r.layout in chosen]
+    if len(chosen) > 1 and complete:
+        # Compared in code, so the model needn't compare layouts itself.
+        best = min(complete, key=lambda r: (r.vs_par, r.started))
+        lines.append(f"  Best round of these layouts (lowest vs par): {_score(best)} on {best.layout} "
+                     f"on {best.day}{_rating(best.rating)}")
     for layout in chosen:
         lines += layout_lines(layout, [r for r in rounds if r.layout == layout],
                               bool(HOLE_QUESTION.search(question)) and len(chosen) == 1)
@@ -275,11 +293,11 @@ def overview_lines(rounds):
              + (f"; {partial} unfinished" if partial else "")]
     if rated:
         best = max(rated, key=lambda r: r.rating)
-        lines.append(f"  Best rating: {best.rating:.0f} at {best.course} ({best.layout}) on {best.day}")
+        lines.append(f"  Best rating (highest): {best.rating:.0f} at {best.course} ({best.layout}) on {best.day}")
         lines.append(f"  Average rating: {_average([r.rating for r in rated]):.0f}")
     if complete:
         best = min(complete, key=lambda r: r.vs_par)
-        lines.append(f"  Best score vs par: {_score(best)} at {best.course} ({best.layout}) on {best.day}")
+        lines.append(f"  Best score (lowest vs par): {_score(best)} at {best.course} ({best.layout}) on {best.day}")
     lines.append("  Most played: " + "; ".join(
         f"{course} {count}" for course, count in Counter(r.course for r in rounds).most_common(TOP_COURSES)))
     lines.append("  Most recent: " + "; ".join(
@@ -292,8 +310,10 @@ def stats_section(scorecards, question, start=None, end=None):
     """What the model is given for a disc golf question: the courses and
     layouts it names, or an overview. Also returns the courses used."""
     header = (f"Disc golf, from the user's UDisc scorecards ({scorecards.player}'s rounds; export saved "
-              f"{scorecards.exported}, so later rounds aren't included). Scores are strokes with +/- par; "
-              f"all numbers are already computed, so use them as given.")
+              f"{scorecards.exported}, so later rounds aren't included). Scores are strokes with +/- par. "
+              f"As in all golf, lower is better: the best score is the fewest strokes, most under par "
+              f"(-3 beats +2). Round ratings are the opposite: higher is better. All numbers are already "
+              f"computed, so use them as given.")
     rounds = scorecards.at(start=start, end=end)
     if start:
         header += f"\nOnly rounds from {start} to {end}."

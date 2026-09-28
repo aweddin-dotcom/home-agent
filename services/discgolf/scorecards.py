@@ -185,8 +185,17 @@ def match_courses(question, scorecards):
     return _best_matches(question, scorecards.all_courses, COLORS | layout_words)
 
 
-def match_layouts(question, layouts):
-    return _best_matches(question, layouts)
+EVERY_LAYOUT = re.compile(r"\b(per|each|every|all|different|by)\s+(the\s+)?layouts?\b|\blayouts\b", re.I)
+
+
+def match_layouts(question, layouts, course=""):
+    """The layouts a question names, or [] for all of them. Words from the
+    course's own name don't count (a layout called "Maple Hill Long" isn't
+    named by "at Maple Hill"), and "per layout" or "all layouts" means all."""
+    if EVERY_LAYOUT.search(question):
+        return []
+    asked = " ".join(sorted(_words(question) - _words(course)))
+    return _best_matches(asked, layouts)
 
 
 DISC_GOLF = re.compile(r"\b(disc ?golf|frisbee golf|u ?disc)\b", re.I)
@@ -325,6 +334,6 @@ def stats_section(scorecards, question, start=None, end=None):
     lines = [header]
     for course in courses:
         at_course = [r for r in rounds if r.course == course]
-        layouts = match_layouts(question, sorted({r.layout for r in at_course}))
+        layouts = match_layouts(question, sorted({r.layout for r in at_course}), course)
         lines += course_lines(course, at_course, question, layouts)
     return "\n".join(lines), courses

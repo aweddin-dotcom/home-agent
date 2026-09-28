@@ -236,3 +236,24 @@ def test_course_best_across_layouts_is_computed():
     text, _ = stats_section(two, "what's my best score at pine hollow?")
     assert "Best round of these layouts (lowest vs par): 5 (-1) on Red on 2026-06-01, rating 900" in text
     assert "lower is better" in text
+
+
+NAMED_LAYOUT = """PlayerName,CourseName,LayoutName,StartDate,EndDate,Total,+/-,RoundRating,Hole1,Hole2
+Par,Pine Hollow Park,Pine Hollow Long,2026-06-01 0900,,6,,,3,3
+Pat Example,Pine Hollow Park,Pine Hollow Long,2026-06-01 0900,,7,1,800,4,3
+Par,Pine Hollow Park,Short,2026-06-02 0900,,6,,,3,3
+Pat Example,Pine Hollow Park,Short,2026-06-02 0900,,5,-1,900,2,3
+"""
+
+
+def test_the_course_name_doesnt_pick_a_layout_named_after_it():
+    cards = scorecards_from(NAMED_LAYOUT, date(2026, 6, 5))
+    text, _ = stats_section(cards, "what's my best score at pine hollow?")
+    assert 'Layout "Pine Hollow Long"' in text and 'Layout "Short"' in text
+    text, _ = stats_section(cards, "best score on the long layout at pine hollow?")
+    assert 'Layout "Pine Hollow Long"' in text and 'Layout "Short"' not in text
+
+
+def test_per_layout_means_every_layout():
+    text, _ = stats_section(cards(), "what are my best scores per layout at maple hill red?")
+    assert 'Layout "Red Tees"' in text and 'Layout "Blue Tees"' in text

@@ -74,6 +74,7 @@ class Assistant:
     open_mail: object = None  # callable returning a read-only Store, for folder names and listings
     status_notes: object = None  # callable returning sync-health lines for the footer
     portfolio: object = None  # Portfolio Analyzer client, for investment questions
+    load_profile: object = None  # callable returning the user's about-me notes
 
     def condense(self, question, history):
         if not history:
@@ -108,7 +109,7 @@ class Assistant:
         mail = self.open_mail() if self.open_mail else None
         context = gather(
             standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz, mail,
-            self.portfolio,
+            self.portfolio, self.load_profile,
         )
         yield from self.chat.stream(*answer_prompt(standalone, context, today))
 

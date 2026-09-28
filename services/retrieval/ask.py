@@ -41,6 +41,9 @@ Today is {today}.
   For "most recent", "latest", "last", or "next" questions, compare the
   dates explicitly, and say which date you went by: when the email arrived,
   or the date of the trip, reservation, or event it describes.
+- "About the user" is notes the user wrote about themselves. Use them
+  for questions about the user and the people in their life, and say the
+  answer comes from their notes.
 - Investment figures come from the user's Portfolio Analyzer app. Say that
   balances are as of each account's latest statement. Give information,
   not advice; for deeper analysis, suggest the Portfolio Analyzer's AI
@@ -79,6 +82,7 @@ class Context:
     mention_rows: list = field(default_factory=list)
     order_rows: list = field(default_factory=list)
     portfolio: str = ""  # "used", "unavailable", or "" when not asked
+    profile: str = ""  # "used", "empty", or "" when not asked
     news_rows: list = field(default_factory=list)
 
 
@@ -245,6 +249,17 @@ def relevant_summary(text, question):
     return "\n".join(kept)
 
 
+def add_profile(context, profile):
+    """The user's own notes about themselves (data/profile/about-me.md)."""
+    text = (profile() if callable(profile) else profile) or ""
+    if text.strip():
+        context.profile = "used"
+        context.sections.append(f"About the user (notes they wrote about themselves):\n{text.strip()}")
+    else:
+        context.profile = "empty"
+        context.sections.append("About the user: no notes written yet (data/profile/about-me.md).")
+
+
 def add_portfolio(context, portfolio, with_news, question=""):
     """The user's investments from Portfolio Analyzer (a separate app it owns)."""
     from services.portfolio.client import PortfolioUnavailable
@@ -272,12 +287,15 @@ def add_portfolio(context, portfolio, with_news, question=""):
                                 "answer, so investment data isn't available right now.")
 
 
-def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None, portfolio=None):
+def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None, portfolio=None,
+           profile=None):
     """`mail` (a Store) adds folder names, folder and date listings; optional."""
     chosen = route(question, chat, today)
     context = Context(chosen)
     if chosen.sources == ["general"]:
         return context  # answered from the model's own knowledge; nothing to look up
+    if "profile" in chosen.sources:
+        add_profile(context, profile)
     if "portfolio" in chosen.sources:
         add_portfolio(context, portfolio, chosen.news, question)
     if mail is not None and chosen.purchases:
@@ -384,6 +402,8 @@ def format_sources(context, tz):
             f"  [E{n}] {describe_time(e, tz)}  {e.summary}  ({e.account})"
             for n, e in enumerate(context.calendar.events, 1)
         )
+    if context.profile:
+        lines.append("About-me notes: " + ("used" if context.profile == "used" else "not written yet"))
     if context.portfolio:
         lines.append("Portfolio Analyzer: " + ("summary of accounts and holdings" if context.portfolio == "used"
                                                else "not available"))
@@ -445,7 +465,7 @@ def main():
     from services.portfolio.client import client_from_settings
 
     context = gather(question, embedder, index, chat, top_k, store.all_events(), today, tz, store,
-                     client_from_settings())
+                     client_from_settings(), settings.profile_text)
     print(chat.complete(*answer_prompt(question, context, today)))
     print()
     print(format_sources(context, tz))

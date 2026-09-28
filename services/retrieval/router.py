@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar", "portfolio", "general")
+SOURCES = ("email", "calendar", "portfolio", "profile", "general")
 # What to search when the model's reply is unusable: the user's own data.
 DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
@@ -46,6 +46,10 @@ sources: which to search.
   allocation, stocks or funds they own or watch, retirement plans, and
   market news about them ("how is my IRA doing?", "any news on my
   stocks?", "is anything on my watchlist near my buy price?").
+- "profile" for questions about the user themselves, from notes they wrote:
+  who they are, family and other people in their life, work, routines,
+  priorities, goals, preferences ("what do you know about me?", "who is
+  my sister?", "what are my goals this year?").
 - "general" alone, only for questions that clearly aren't about the user's
   own messages, schedule, plans, purchases, people, or accounts: facts,
   definitions, how-to, conversions, arithmetic ("how many ounces in a

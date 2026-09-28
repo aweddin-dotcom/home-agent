@@ -297,6 +297,8 @@ ROUTING_CASES = [
     ("How is my Roth IRA doing?", "portfolio", None),
     ("Is anything on my watchlist near my buy price?", "portfolio", None),
     ("Any news about the stocks I own?", "portfolio", "news"),
+    ("What do you know about me from my about-me notes?", "profile", None),
+    ("What are my goals for this year?", "profile", None),
 ]
 
 

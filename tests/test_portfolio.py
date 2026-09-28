@@ -285,3 +285,27 @@ def test_portfolio_only_question_gets_no_dated_emails(gmail_messages, event_fixt
     chat = RouteChat(reply(start_date="2027-03-01", end_date="2027-03-31"))
     context = gather("what's my roth balance for march", None, index, chat, 3, [], TODAY, TZ, store, FakePortfolio())
     assert context.mention_rows == [] and len(context.sections) == 1
+
+
+# --- the user's about-me notes ---------------------------------------------------------
+
+
+def test_profile_question_uses_the_notes():
+    chat = RouteChat(reply(sources=["profile"]))
+    notes = "## People\nDana Reyes: sister, lives nearby.\n## Goals\nRun a half marathon."
+    context = gather("who is my sister?", None, None, chat, 3, [], TODAY, TZ, None, None, lambda: notes)
+    assert context.profile == "used"
+    assert context.sections == [f"About the user (notes they wrote about themselves):\n{notes}"]
+    assert "About-me notes: used" in format_sources(context, TZ)
+    assert "notes the user wrote about themselves" in answer_prompt("q", context, TODAY)[0]
+
+
+def test_profile_not_written_yet_is_said():
+    context = gather("what do you know about me?", None, None, RouteChat(reply(sources=["profile"])), 3, [], TODAY,
+                     TZ, None, None, lambda: "")
+    assert context.profile == "empty" and "no notes written yet" in context.sections[0]
+    assert "About-me notes: not written yet" in format_sources(context, TZ)
+
+
+def test_router_keeps_profile_and_drops_general_alongside_it():
+    assert validate(reply(sources=["profile", "general"])).sources == ["profile"]

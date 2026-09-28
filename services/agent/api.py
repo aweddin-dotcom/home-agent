@@ -38,6 +38,7 @@ def assistant_from_settings():
         load_events=lambda: Store(settings.STRUCTURED_DB, readonly=True).all_events(),
         open_mail=lambda: Store(settings.STRUCTURED_DB, readonly=True),
         portfolio=client_from_settings(),
+        load_profile=settings.profile_text,
         status_notes=lambda: sync_notes(
             Store(settings.STRUCTURED_DB, readonly=True).sync_statuses(),
             list(settings.accounts()),

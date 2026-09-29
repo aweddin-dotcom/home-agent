@@ -1,0 +1,9 @@
+# Connection to Browser Pong (a separate app; see its server.js).
+# Read-only: Home Agent only reads the league's match history, for questions
+# like "who has the best Pong record?".
+
+enabled: true
+# The game listens on port 5075 on the host; containers reach it here.
+# Override with PONG_URL.
+url: http://host.docker.internal:5075
+timeout_seconds: 10

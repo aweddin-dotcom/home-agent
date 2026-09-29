@@ -10,7 +10,7 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "general")
+SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "pong", "general")
 # What to search when the model's reply is unusable: the user's own data.
 DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
@@ -54,6 +54,8 @@ sources: which to search.
   scorecards: courses and layouts played, how often, scores, ratings,
   holes ("how many times have I played Maple Hill?", "what's my best
   score on the red layout?", "how did I play last month?").
+- "pong" for the family's Browser Pong league: standings, records, who's
+  best, head-to-head, recent matches ("who has the best Pong record?").
 - "general" alone, only for questions that clearly aren't about the user's
   own messages, schedule, plans, purchases, people, accounts, or games: facts,
   definitions, how-to, conversions, arithmetic ("how many ounces in a

@@ -18,7 +18,8 @@ from .router import route
 from .search import build_from_settings, search
 from .structured_query import describe_time, format_calendar, lookup
 
-SYSTEM_PROMPT = """You answer the user's questions about their email, calendar, investments, and disc golf.
+SYSTEM_PROMPT = """You answer the user's questions about their email, calendar, investments, disc golf,
+and the family's Browser Pong league.
 Today is {today}.
 
 - Use only the calendar events and emails provided. If they don't contain
@@ -54,6 +55,10 @@ Today is {today}.
   Lower scores are better; higher ratings are better. A rating is not a
   score. Mention that the stats run through the date the export was saved.
   Disc golf stats have no citation numbers; don't add any.
+- Browser Pong standings come from the family's Pong league and are
+  already worked out: the leader is whoever is first on the leaderboard.
+  Use the records exactly as given; a light, playful tone is fine. They
+  have no citation numbers; don't add any.
 - For purchases, the order emails listed like [O1] are what the user
   actually bought. A store's marketing about similar products is not a
   purchase.
@@ -91,6 +96,7 @@ class Context:
     profile: str = ""  # "used", "empty", or "" when not asked
     news_rows: list = field(default_factory=list)
     discgolf: str = ""  # what the disc golf lookup used, "none", or "" when not asked
+    pong: str = ""  # "N matches", "unavailable", or "" when not asked
 
 
 @dataclass
@@ -316,8 +322,30 @@ def add_discgolf(context, discgolf, question):
     context.discgolf = f"{used}; export saved {scorecards.exported}"
 
 
+PONG = re.compile(r"\bpong\b", re.I)
+
+
+def add_pong(context, pong):
+    """League standings from Browser Pong (a separate app it owns)."""
+    from services.pong.standings import PongUnavailable, standings_section
+
+    if pong is None:
+        context.pong = "unavailable"
+        context.sections.append("Browser Pong: not connected (config/pong.yaml).")
+        return
+    try:
+        matches = pong.matches()
+    except PongUnavailable:
+        context.pong = "unavailable"
+        context.sections.append("Browser Pong: the game isn't running or didn't answer, so its league "
+                                "records aren't available right now.")
+        return
+    context.pong = f"{len(matches)} league matches"
+    context.sections.append(standings_section(matches))
+
+
 def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None, portfolio=None,
-           profile=None, discgolf=None):
+           profile=None, discgolf=None, pong=None):
     """`mail` (a Store) adds folder names, folder and date listings; optional."""
     chosen = route(question, chat, today)
     context = Context(chosen)
@@ -332,10 +360,14 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None,
             scorecards = None
         if mentions_disc_golf(question, scorecards):
             chosen.sources = [s for s in chosen.sources if s != "general"] + ["disc_golf"]
+    if PONG.search(question) and "pong" not in chosen.sources:
+        chosen.sources = [s for s in chosen.sources if s != "general"] + ["pong"]
+    if "pong" in chosen.sources:
+        add_pong(context, pong)
     if "disc_golf" in chosen.sources:
         add_discgolf(context, discgolf, question)
-        if set(chosen.sources) <= {"disc_golf"}:
-            return context
+    if chosen.sources and set(chosen.sources) <= {"disc_golf", "pong"}:
+        return context
     if chosen.sources == ["general"]:
         return context  # answered from the model's own knowledge; nothing to look up
     if "profile" in chosen.sources:
@@ -423,8 +455,25 @@ def answer_prompt(question, context, today):
     if context.route.sources == ["general"]:
         return GENERAL_PROMPT.format(today=f"{today:%A}, {today.isoformat()}"), question
     system = SYSTEM_PROMPT.format(today=f"{today:%A}, {today.isoformat()}")
+    if not has_citations(context):
+        # Nothing numbered was found (standings, stats, notes): a small model
+        # told how to cite invents tags like [E1] anyway.
+        system = system.replace(CITE_RULE, NO_CITE_RULE)
     user = "\n\n".join(context.sections) + f"\n\nQuestion: {question}"
     return system, user
+
+
+CITE_RULE = """- Cite what you used: emails by number like [1], events like [E1], folder
+  listings like [F1], emails listed by date like [D1] or [M1], orders
+  like [O1]."""
+NO_CITE_RULE = "- Nothing here has citation numbers; don't add any like [1] or [E1]."
+
+
+def has_citations(context):
+    """Whether anything numbered for citing ([1], [E1], [F1], ...) was found."""
+    events = context.calendar.events if context.calendar else []
+    return any([context.hits, events, context.folder_rows, context.dated_rows, context.mention_rows,
+                context.order_rows, context.news_rows])
 
 
 def ask(question, embedder, index, chat, top_k, events, today, tz):
@@ -454,6 +503,8 @@ def format_sources(context, tz):
     if context.discgolf:
         lines.append("UDisc scorecards: " + ("no export found in data/udisc/" if context.discgolf == "none"
                                              else context.discgolf))
+    if context.pong:
+        lines.append("Browser Pong: " + ("not available" if context.pong == "unavailable" else context.pong))
     if context.news_rows:
         lines.append("News:")
         lines.extend(f"  [N{n}] {(a.get('published') or '')[:10]}  {a.get('title', '')}  ({a.get('publisher', '')})"
@@ -509,10 +560,11 @@ def main():
 
     question = " ".join(sys.argv[1:])
     top_k = settings.retrieval()["search"]["top_k"]
+    from services.pong.standings import client_from_settings as pong_client
     from services.portfolio.client import client_from_settings
 
     context = gather(question, embedder, index, chat, top_k, store.all_events(), today, tz, store,
-                     client_from_settings(), settings.profile_text, settings.discgolf)
+                     client_from_settings(), settings.profile_text, settings.discgolf, pong_client())
     print(chat.complete(*answer_prompt(question, context, today)))
     print()
     print(format_sources(context, tz))

@@ -302,6 +302,8 @@ ROUTING_CASES = [
     ("How many times have I played Maple Hill and what's my best score on the red layout?", "disc_golf", None),
     ("How did my disc golf go last month?", "disc_golf", ("2026-08-01", "2026-08-31")),
     ("What's my average round rating this year?", "disc_golf", None),
+    ("Who has the best Browser Pong record?", "pong", None),
+    ("What's my head-to-head record against Robin in our Pong league?", "pong", None),
 ]
 
 

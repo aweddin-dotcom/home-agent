@@ -24,6 +24,7 @@ def assistant_from_settings():
     from services.embedding.index import EmailIndex
     from services.ingestion.store import Store
 
+    from services.pong.standings import client_from_settings as pong_client
     from services.portfolio.client import client_from_settings
 
     from .assistant import Assistant
@@ -40,6 +41,7 @@ def assistant_from_settings():
         portfolio=client_from_settings(),
         load_profile=settings.profile_text,
         load_discgolf=settings.discgolf,
+        pong=pong_client(),
         status_notes=lambda: sync_notes(
             Store(settings.STRUCTURED_DB, readonly=True).sync_statuses(),
             list(settings.accounts()),

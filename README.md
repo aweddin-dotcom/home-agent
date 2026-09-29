@@ -112,6 +112,15 @@ ratings, recent rounds, and per-hole averages when you ask about holes.
 Answers say the date of the export. Your rounds are the ones under the name
 on the most scorecards; set `UDISC_PLAYER` in `.env` if that's someone else.
 
+### Browser Pong league
+
+Browser Pong (a separate game in `..\browser-pong`) keeps the family's league
+matches; Home Agent reads them, read-only, from the game's `/api/matches`
+(`config/pong.yaml`). "Who has the best Pong record?" is answered from
+standings worked out in code: wins, losses, win rate, head-to-head, and
+recent matches, with names matched the way the game matches them
+(capitalization doesn't matter). If the game isn't running, the answer says so.
+
 ### Chat in the browser
 
 Open WebUI (http://127.0.0.1:3000) offers the assistant as the model

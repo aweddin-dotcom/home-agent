@@ -1,0 +1,103 @@
+# Sender checks (services/common/senders.py): spotting mail that claims to be
+# from a business it isn't from. Used by the morning digest and chat.
+#
+# Brands that phishing commonly imitates, with the domains their mail really
+# comes from (subdomains count: alerts.chase.com is chase.com). Mail whose
+# display name is one of these brands (alone or with words like "Support" or
+# "Security") from any other domain is marked as possible phishing. Add the
+# businesses you deal with.
+brands:
+  paypal: [paypal.com]
+  venmo: [venmo.com]
+  zelle: [zellepay.com]
+  amazon: [amazon.com, amazon.co.uk, amazonses.com, amazonaws.com, aws.com, primevideo.com]
+  apple: [apple.com, icloud.com, itunes.com]
+  icloud: [apple.com, icloud.com]
+  microsoft: [microsoft.com, microsoftonline.com, office.com, outlook.com, live.com, xbox.com]
+  outlook: [microsoft.com, outlook.com, live.com]
+  office 365: [microsoft.com, microsoftonline.com, office.com]
+  google: [google.com, youtube.com, gmail.com, googlegroups.com, googleusercontent.com, googlemail.com]
+  gmail: [google.com, gmail.com]
+  netflix: [netflix.com]
+  facebook: [facebook.com, facebookmail.com, meta.com]
+  meta: [meta.com, facebookmail.com]
+  instagram: [instagram.com, mail.instagram.com, facebookmail.com]
+  linkedin: [linkedin.com]
+  dropbox: [dropbox.com, dropboxmail.com]
+  docusign: [docusign.com, docusign.net]
+  ebay: [ebay.com]
+  walmart: [walmart.com]
+  costco: [costco.com]
+  target: [target.com]
+  best buy: [bestbuy.com]
+  geek squad: [bestbuy.com, geeksquad.com]
+  norton: [norton.com, nortonlifelock.com, gen.digital]
+  mcafee: [mcafee.com]
+  coinbase: [coinbase.com]
+  chase: [chase.com, jpmorgan.com, jpmchase.com]
+  bank of america: [bankofamerica.com, bofa.com, ealerts.bankofamerica.com]
+  wells fargo: [wellsfargo.com]
+  citi: [citi.com, citibank.com]
+  capital one: [capitalone.com]
+  american express: [americanexpress.com, aexp.com]
+  amex: [americanexpress.com, aexp.com]
+  discover: [discover.com, discovercard.com]
+  usaa: [usaa.com]
+  usps: [usps.com, usps.gov]
+  ups: [ups.com]
+  fedex: [fedex.com]
+  dhl: [dhl.com]
+  irs: [irs.gov]
+  social security: [ssa.gov]
+  medicare: [medicare.gov, cms.gov]
+  verizon: [verizon.com, verizonwireless.com]
+  at&t: [att.com, att.net]
+  t-mobile: [t-mobile.com]
+  xfinity: [xfinity.com, comcast.com, comcast.net]
+  comcast: [comcast.com, comcast.net, xfinity.com]
+  spectrum: [spectrum.com, charter.com, charter.net]
+  # Brokers (config/portfolio.yaml)
+  vanguard: [vanguard.com]
+  schwab: [schwab.com]
+  fidelity: [fidelity.com, fmr.com]
+  tsp: [tsp.gov]
+
+# Services that send mail for many businesses (school and office reminders,
+# town alerts, newsletters). A business name sent through one of these isn't
+# a mismatch. Add services your schools, doctors, and landlords use.
+sending_services:
+  - schoolmessenger.com
+  - parentsquare.com
+  - remind.com
+  - bloomz.net
+  - weave.com
+  - getweave.com
+  - solutionreach.com
+  - demandforce.com
+  - lighthouse360.com
+  - everbridge.net
+  - nixle.com
+  - appfolio.com
+  - buildinglink.com
+  - mcsv.net
+  - mailchimpapp.net
+  - constantcontact.com
+  - ccsend.com
+  - sendgrid.net
+  - hubspotemail.net
+  - klaviyomail.com
+  - shopify.com
+  - squareup.com
+  - toasttab.com
+  - zendesk.com
+  - freshdesk.com
+  - mindbodyonline.com
+  - vagaro.com
+  - signupgenius.com
+  - eventbrite.com
+  - evite.com
+  - paperlesspost.com
+
+# Senders you trust even though their name and address don't match.
+# Whole addresses or domains, e.g. "newsletter@example.org" or "example.org".
+trusted: []

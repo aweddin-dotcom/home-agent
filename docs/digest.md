@@ -63,6 +63,22 @@ an event im registered for has changed schedule or been cancelled
   arriving, a school announcement, a change to a plan)
 - **Max:** 3 items.
 
+### Looks suspicious
+
+Mail whose sender name claims a business it wasn't sent by, checked in code
+(`services/common/senders.py`, `config/sender_checks.yaml`), not by the model:
+- **Possible phishing**: the name is a well-known brand ("PayPal Security")
+  but the domain isn't one of that brand's; the name shows a different
+  address than the real one; or the domain borrows a brand's name
+  (paypal-alerts.com). Listed here with the real sending address, never
+  summarized as if genuine, and never under "needs attention".
+- **Sender doesn't match**: a business-looking name with nothing in common
+  with the sending domain. Summarized as usual but marked ⚠ and kept out of
+  "needs attention".
+- To review what gets flagged: `python -m services.common.senders` (prints in
+  your terminal). Genuine senders go under `trusted:` in the config.
+- **Max:** 5 items.
+
 ### What I did
 
 Transparency about actions the assistant took without asking.

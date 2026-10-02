@@ -88,18 +88,22 @@ def sort_prompt(config, today, profile):
     )
 
 
-def email_text(row):
+def email_text(row, note=""):
     folders = ", ".join(row.get("folders") or [])
     body = " ".join((row.get("body") or row.get("snippet") or "").split())[:EMAIL_CHARS]
-    return (f"From: {row['sender']}\nReceived: {row['date'][:16].replace('T', ' ')}\n"
+    warning = f"Sender check: {note}\n" if note else ""
+    return (f"From: {row['sender']}\n{warning}Received: {row['date'][:16].replace('T', ' ')}\n"
             f"Subject: {row['subject']}\nFolder: {folders or 'unknown'}\n\n{body}")
 
 
-def sort_email(chat, system, row):
+def sort_email(chat, system, row, check=None):
     """Ask the model where one email belongs. A failed or unusable reply puts
-    it under "worth knowing" by its subject, so nothing silently disappears."""
+    it under "worth knowing" by its subject, so nothing silently disappears.
+    `check` (a sender mismatch, services/common/senders.py) keeps it out of
+    "needs attention" and marks its summary."""
+    note = check.reason if check else ""
     try:
-        data = json.loads(chat.complete(system, email_text(row), schema=SCHEMA, temperature=0))
+        data = json.loads(chat.complete(system, email_text(row, note), schema=SCHEMA, temperature=0))
     except Exception:  # noqa: BLE001 - one bad email mustn't stop the digest
         data = {}
     category = data.get("category") if data.get("category") in CATEGORIES else "worth_knowing"
@@ -108,7 +112,22 @@ def sort_email(chat, system, row):
         due = date.fromisoformat(data["due"]) if data.get("due") else None
     except (TypeError, ValueError):
         due = None
-    return Sorted(row, category, summary[:160], due)
+    if check:
+        # Not who it says it's from: never a to-do, and say so.
+        category = "worth_knowing" if category == "attention" else category
+        summary = f"⚠ Sender doesn't match ({_address(row)}): {summary}"
+    return Sorted(row, category, summary[:200], due)
+
+
+def _address(row):
+    from email.utils import parseaddr
+
+    return parseaddr(row.get("sender") or "")[1] or row.get("sender") or "unknown sender"
+
+
+def suspicious_line(row, check):
+    """A "Looks suspicious" entry: what it claims, where it's really from, why."""
+    return f"- ⚠ \"{row['subject']}\" from {_address(row)}: {check.reason}  ({row['account']})"
 
 
 def _clock(moment):
@@ -162,7 +181,7 @@ def _due_label(due, today):
     return f"{due:%b} {due.day}: "
 
 
-def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, investments=()):
+def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, investments=(), suspicious=()):
     today = now.date()
     limits = config["max_items"]
     attention = sorted(
@@ -197,6 +216,14 @@ def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, in
         if len(worth) > limits["worth_knowing"]:
             lines.append(f"- ...and {len(worth) - limits['worth_knowing']} more")
         sections.append(("Worth knowing", lines))
+    if suspicious:
+        cap = limits.get("suspicious", 5)
+        lines = [suspicious_line(row, check) for row, check in suspicious[:cap]]
+        if len(suspicious) > cap:
+            lines.append(f"- ...and {len(suspicious) - cap} more")
+        lines.append("- These claim to be from a business they weren't sent by. Don't click links or reply; "
+                     "check with the business directly if unsure.")
+        sections.append(("Looks suspicious", lines))
     housekeeping = []
     if set_aside or skipped:
         housekeeping.append(f"- Set aside {set_aside + skipped} newsletters, promotions, and routine notifications")
@@ -225,18 +252,25 @@ def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=p
         since = datetime.fromisoformat(previous["created_at"])  # everything since the last one
     else:
         since = now - timedelta(hours=config["first_lookback_hours"])
+    from services.common.senders import check_sender
+
     skip_folders = {f.lower() for f in config["skip_folders"]}
-    candidates, set_aside = [], 0
+    candidates, set_aside, suspicious = [], 0, []
     for row in store.emails_since(since):
         # Marketing (by content, since Outlook has no Promotions tab) needs no model call either.
         if {f.lower() for f in row.get("folders") or []} & skip_folders or row.get("kind") == "marketing":
             set_aside += 1
+            continue
+        check = check_sender(row.get("sender"))
+        if check and check.level == "phishing":
+            suspicious.append((row, check))  # listed as suspicious, never summarized as if genuine
         else:
-            candidates.append(row)
+            candidates.append((row, check))
     limit = config["max_emails_to_sort"]
-    log(f"Digest: sorting {min(len(candidates), limit)} emails ({set_aside} set aside as promotions or marketing).")
+    log(f"Digest: sorting {min(len(candidates), limit)} emails ({set_aside} set aside as promotions or marketing, "
+        f"{len(suspicious)} look like phishing).")
     system = sort_prompt(config, now.date(), profile)
-    sorted_emails = [sort_email(chat, system, row) for row in candidates[:limit]]
+    sorted_emails = [sort_email(chat, system, row, check) for row, check in candidates[:limit]]
 
     statuses = store.sync_statuses()
     problems = [f"Sync problem ({a}): {s['detail']}" for a, s in statuses.items()
@@ -253,7 +287,7 @@ def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=p
         investments, note = investment_lines(portfolio, chat, recent, now.date(), pconfig, log)
         if note:
             problems.append(note)
-    text = compose(now, sorted_emails, set_aside, store.all_events(), tz, config, problems, investments)
+    text = compose(now, sorted_emails, set_aside, store.all_events(), tz, config, problems, investments, suspicious)
     store.save_digest(now.date(), text, since.astimezone(timezone.utc).isoformat(),
                       created_at=now.astimezone(timezone.utc).isoformat())
     return text

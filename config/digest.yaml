@@ -15,6 +15,7 @@ max_items:
   needs_attention: 5
   coming_up: 5
   worth_knowing: 3
+  suspicious: 5       # mail claiming to be from a business it wasn't sent by (config/sender_checks.yaml)
 
 # Mail in these folders/labels is set aside without asking the model.
 skip_folders: [Promotions, Social, Forums, Sent, Sent Items, Spam, Junk Email, Trash, Deleted Items, Drafts]

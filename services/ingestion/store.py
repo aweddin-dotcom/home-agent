@@ -17,6 +17,15 @@ SCHEMA_VERSION = 7
 # Two dates this close in one email are read as a span (check-in to check-out).
 SPAN_DAYS = 21
 
+# Mail the provider (or the user) has filed as spam or deleted, possibly after
+# it was synced. Left out of date and order listings and of search results;
+# still listed when the user asks about one of these folders by name.
+JUNK_FOLDERS = {"spam", "junk email", "junk", "trash", "deleted items"}
+
+
+def is_junk(folders):
+    return any(f.lower() in JUNK_FOLDERS for f in folders or [])
+
 DIGESTS_TABLE = """create table if not exists digests (
     day text primary key,  -- YYYY-MM-DD, the user's local date
     created_at text,
@@ -261,7 +270,7 @@ class Store:
 
     def recent_orders(self, since):
         """Order, shipping, delivery, and receipt emails received since a moment, newest first."""
-        return [r for r in self.emails_since(since) if r["kind"] == "order"]
+        return [r for r in self.emails_since(since) if r["kind"] == "order" and not is_junk(r["folders"])]
 
     def emails_between(self, start, end, tz, limit=15):
         """Emails received from `start` through `end` (dates, in the user's time
@@ -269,6 +278,8 @@ class Store:
         moments, since providers write them in different zones."""
         inside = []
         for row in self._email_rows():
+            if is_junk(row["folders"]):
+                continue
             try:
                 received = datetime.fromisoformat(row["date"]).astimezone(tz).date()
             except (TypeError, ValueError):
@@ -288,6 +299,8 @@ class Store:
         matched = []
         for r in self._read_all("select account, id, date, sender, subject, snippet, folders, body,"
                                 " mentioned_dates from emails"):
+            if is_junk(json.loads(r[6] or "[]")):
+                continue
             dates = sorted(json.loads(r[8] or "[]"))
             mentions = [d for d in dates if lo <= d <= hi]
             for first, last in zip(dates, dates[1:]):

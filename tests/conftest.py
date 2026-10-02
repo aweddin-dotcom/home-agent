@@ -100,10 +100,13 @@ class FakeGmail:
     def labels(self):
         return _Labels(self.label_defs)
 
-    def list(self, userId, q, maxResults, labelIds=None):
+    def list(self, userId, q, maxResults, labelIds=None, includeSpamTrash=False):
+        # Like Gmail: spam and trash are left out unless asked for.
+        ids = [i for i in self.ids
+               if includeSpamTrash or not {"SPAM", "TRASH"} & set(self.by_id[i].get("labelIds", []))]
         if labelIds:
-            return self._page(0, [i for i in self.ids if labelIds[0] in self.by_id[i].get("labelIds", [])])
-        return self._page(0, self.ids)
+            return self._page(0, [i for i in ids if labelIds[0] in self.by_id[i].get("labelIds", [])])
+        return self._page(0, ids)
 
     def _page(self, start, ids):
         page = ids[start : start + self.page_size]

@@ -72,6 +72,12 @@ def skipped_folder_ids(client):
     return ids
 
 
+# Graph normally gives a message a new id whenever it moves to another folder
+# (Outlook filing it as junk, the user moving it), so a stored email could
+# never be matched again. Immutable ids stay the same across moves.
+IMMUTABLE_IDS = 'IdType="ImmutableId"'
+
+
 def fetch_messages(client, account, since, max_messages, skip_ids=frozenset()):
     """Yield parsed emails received since a time, newest first, skipping known
     ids and deleted, junk, and draft mail."""
@@ -82,7 +88,7 @@ def fetch_messages(client, account, since, max_messages, skip_ids=frozenset()):
         "$top": "100",
         "$select": MESSAGE_FIELDS,
     }
-    headers = {"Prefer": 'outlook.body-content-type="text"'}
+    headers = {"Prefer": f'outlook.body-content-type="text", {IMMUTABLE_IDS}'}
     seen = 0
     for message in client.paged("/me/messages", params, headers):
         seen += 1
@@ -159,18 +165,25 @@ def folder_paths(client):
 
 
 def fetch_folder_map(client, since, max_messages):
-    """{message id: [folder name]} for every email in the sync window."""
+    """{message id: [folder name]} for every email in the sync window,
+    including those since moved to Junk Email or Deleted Items (so the stored
+    copies are marked as such). Only mail in other folders counts toward
+    max_messages: a full junk folder mustn't crowd out real mail."""
     paths = folder_paths(client)
+    skip_folders = skipped_folder_ids(client)
     params = {
         "$filter": f"receivedDateTime ge {since.astimezone(timezone.utc):%Y-%m-%dT%H:%M:%SZ}",
         "$orderby": "receivedDateTime desc",
         "$top": "500",
         "$select": "id,parentFolderId",
     }
-    folders = {}
-    for message in client.paged("/me/messages", params):
-        if len(folders) >= max_messages:
+    folders, counted = {}, 0
+    for message in client.paged("/me/messages", params, {"Prefer": IMMUTABLE_IDS}):
+        if counted >= max_messages:
             break
-        name = paths.get(message.get("parentFolderId"))
+        folder = message.get("parentFolderId")
+        if folder not in skip_folders:
+            counted += 1
+        name = paths.get(folder)
         folders[message["id"]] = [name] if name else []
     return folders

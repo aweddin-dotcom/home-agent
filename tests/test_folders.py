@@ -86,6 +86,25 @@ def test_moving_an_email_is_picked_up_on_the_next_sync(gmail_messages, event_fix
     assert store.folders_for([("gmail", "m-plumber")])[("gmail", "m-plumber")] == ["Travel stuff"]
 
 
+def test_mail_marked_as_spam_later_is_marked_and_left_out(gmail_messages, event_fixtures):
+    store, index = synced_store(gmail_messages, event_fixtures)
+    plumber = next(m for m in gmail_messages if m["id"] == "m-plumber")
+    plumber["labelIds"] = ["SPAM"]  # Gmail (or the user) filed it as spam after it was synced
+    connect = lambda label, cfg: GoogleSource(label, FakeGmail(gmail_messages), FakeCalendar([]), log=quiet)  # noqa: E731
+    sync_accounts({"gmail": {"provider": "google"}}, connect, store, FakeEmbedder(), index, CONFIG, quiet)
+    assert store.folders_for([("gmail", "m-plumber")])[("gmail", "m-plumber")] == ["Spam"]
+
+    # Gone from listings by date and from search answers...
+    _, rows = store.emails_between(date(2026, 9, 21), date(2026, 9, 21), TZ)
+    assert "m-plumber" not in [r["email_id"] for r in rows]
+    chat = RouteChat({"sources": ["email"], "start_date": None, "end_date": None,
+                      "calendar_keywords": [], "mail_folder": None})
+    context = gather("leaking kitchen faucet plumber", FakeEmbedder(), index, chat, 3, [], TODAY, TZ, store)
+    assert "m-plumber" not in [h["email_id"] for h in context.hits]
+    # ...but there when the spam folder is asked about by name.
+    assert [r["email_id"] for r in store.emails_in_folder("spam")[2]] == ["m-plumber"]
+
+
 def test_emails_in_folder_matches_part_of_the_name(gmail_messages, event_fixtures):
     store, _ = synced_store(gmail_messages, event_fixtures)
     matched, total, rows = store.emails_in_folder("travel")

@@ -281,6 +281,13 @@ def build_from_settings(store, log=print):
                  list(settings.accounts()), log, client_from_settings(), settings.load_config("portfolio.yaml"))
 
 
+def digest_due():
+    """Whether the morning digest will be built after this sync."""
+    from services.ingestion.store import Store
+
+    return is_due(Store(settings.STRUCTURED_DB), settings.digest(), datetime.now(settings.TIMEZONE))
+
+
 def maybe_build(log=print):
     """Called by the sync worker after each sync."""
     from services.ingestion.store import Store

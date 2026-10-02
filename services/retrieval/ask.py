@@ -201,7 +201,7 @@ def format_orders(rows, total):
 
 MENTION_LIMIT = 5
 # Mail in these folders mentions dates for marketing reasons ("sale ends March 31").
-NOISE_FOLDERS = {"promotions", "social", "forums", "spam", "junk email"}
+NOISE_FOLDERS = {"promotions", "social", "forums", "spam", "junk email", "junk", "trash", "deleted items"}
 
 
 def rank_by_question(question, rows, embedder, index, limit):
@@ -431,6 +431,11 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None,
                 hits.sort(key=lambda h: (h["kind"] != "order", h["kind"] == "marketing"))
         if matched:
             hits = [h for h in hits if set(h.get("folders", [])) & set(matched)]
+        elif mail is not None:
+            # Spam and deleted mail only when that folder is asked about by name.
+            from services.ingestion.store import is_junk
+
+            hits = [h for h in hits if not is_junk(h.get("folders"))]
         if dated:
             last = min(chosen.end, today)
             hits = [h for h in hits if chosen.start <= _received(h).astimezone(tz).date() <= last]

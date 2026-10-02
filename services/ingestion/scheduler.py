@@ -64,6 +64,18 @@ def wait_until(ready, timeout_seconds, what, sleep=time.sleep, step=15):
     return True
 
 
+def refresh_before_digest(refresh_folders, digest_due):
+    """Whether this sync refreshes folder names: on schedule, and also just
+    before the morning digest, so mail filed as junk or moved since the last
+    refresh isn't highlighted."""
+    if refresh_folders:
+        return True
+    try:
+        return bool(digest_due())
+    except Exception:  # noqa: BLE001 - the digest check mustn't stop syncing
+        return False
+
+
 def run_forever(run_once, interval_minutes, folders_every_minutes, sleep=time.sleep, clock=time.monotonic,
                 cycles=None, before_run=None):
     """Call run_once(refresh_folders=...) every interval, after before_run()
@@ -96,10 +108,10 @@ def main():
     schedule = settings.retrieval()["sync"]
     log(f"Syncing every {schedule['interval_minutes']} minutes; "
         f"folder names every {schedule['folders_every_minutes']} minutes.")
-    from services.digest.build import maybe_build
+    from services.digest.build import digest_due, maybe_build
 
     def cycle(refresh_folders):
-        failed = run_once(refresh_folders=refresh_folders, log=log)
+        failed = run_once(refresh_folders=refresh_before_digest(refresh_folders, digest_due), log=log)
         try:
             maybe_build(log=log)  # the morning digest, once its time has passed
         except Exception as error:  # noqa: BLE001 - a digest failure mustn't stop syncing

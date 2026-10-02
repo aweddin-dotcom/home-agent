@@ -1,6 +1,6 @@
 """Outlook/Hotmail via a fake Microsoft Graph. All data is invented."""
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
 
 import httpx
@@ -8,7 +8,8 @@ import pytest
 
 from services.common.microsoft_creds import GRAPH, missing_scopes
 from services.ingestion.graph_api import GraphClient, GraphError
-from services.ingestion.microsoft_source import fetch_events, fetch_messages, parse_graph_event, parse_graph_message
+from services.ingestion.microsoft_source import (IMMUTABLE_IDS, fetch_events, fetch_folder_map, fetch_messages,
+                                                 parse_graph_event, parse_graph_message)
 from services.ingestion.sources import MicrosoftSource
 from services.ingestion.store import Store
 from services.ingestion.sync import sync_calendar, sync_emails
@@ -105,7 +106,9 @@ class FakeGraph:
                 assert params["$orderby"] == "receivedDateTime desc"
                 assert params["$filter"].startswith("receivedDateTime ge ")
                 if "body" in params.get("$select", "body"):
-                    assert request.headers["Prefer"] == 'outlook.body-content-type="text"'
+                    assert 'outlook.body-content-type="text"' in request.headers["Prefer"]
+                # Ids that survive moves between folders (junk, the user filing mail).
+                assert 'IdType="ImmutableId"' in request.headers.get("Prefer", "")
             start = int(params.get("skip", 0))
             page = {"value": MESSAGES[start : start + 2]}
             if start + 2 < len(MESSAGES):
@@ -132,8 +135,19 @@ def client(fake=None, waits=(15,)):
 def test_paging_follows_next_links():
     graph, _ = client()
     params = {"$filter": "receivedDateTime ge 2025-01-01T00:00:00Z", "$orderby": "receivedDateTime desc"}
-    items = list(graph.paged("/me/messages", params, {"Prefer": 'outlook.body-content-type="text"'}))
+    items = list(graph.paged("/me/messages", params,
+                             {"Prefer": f'outlook.body-content-type="text", {IMMUTABLE_IDS}'}))
     assert [m["id"] for m in items] == [m["id"] for m in MESSAGES]
+
+
+def test_folder_map_marks_junk_and_deleted_without_counting_them():
+    graph, _ = client()
+    # Four counted: o-1, o-2, o-3, o-6. o-4 (junk) and o-5 (deleted) are
+    # listed, so their stored copies are marked, but don't use up the limit.
+    folders = fetch_folder_map(graph, NOW - timedelta(days=30), max_messages=4)
+    assert folders["o-4"] == ["Junk Email"] and folders["o-5"] == ["Deleted Items"]
+    assert folders["o-3"] == ["Inbox/Travel stuff"]
+    assert sorted(folders) == ["o-1", "o-2", "o-3", "o-4", "o-5", "o-6"]
 
 
 def test_rate_limit_honors_retry_after():

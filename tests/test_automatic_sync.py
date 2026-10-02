@@ -216,3 +216,14 @@ def test_before_run_happens_before_every_sync():
     run_forever(lambda refresh_folders: order.append("sync") or [], 15, 60, sleep=clock.sleep, clock=clock,
                 cycles=2, before_run=lambda: order.append("wait"))
     assert order == ["wait", "sync", "wait", "sync"]
+
+
+def test_folders_are_refreshed_just_before_the_digest():
+    from services.ingestion.scheduler import refresh_before_digest
+
+    assert refresh_before_digest(True, lambda: False) is True       # on its regular schedule
+    assert refresh_before_digest(False, lambda: True) is True       # the digest is about to be built
+    assert refresh_before_digest(False, lambda: False) is False
+    def broken():
+        raise RuntimeError("database busy")
+    assert refresh_before_digest(False, broken) is False            # a failed check doesn't stop syncing

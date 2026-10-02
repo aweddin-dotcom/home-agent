@@ -108,6 +108,7 @@ SYSTEM_LABELS = {
     "CATEGORY_UPDATES": "Updates",
     "CATEGORY_FORUMS": "Forums",
 }
+SPAM_TRASH = {"SPAM": "Spam", "TRASH": "Trash"}
 
 
 def _list_ids(service, query, max_messages, log, label_id=None):
@@ -115,6 +116,8 @@ def _list_ids(service, query, max_messages, log, label_id=None):
     kwargs = {"userId": "me", "q": query, "maxResults": min(500, max_messages)}
     if label_id:
         kwargs["labelIds"] = [label_id]
+    if label_id in SPAM_TRASH:
+        kwargs["includeSpamTrash"] = True  # Gmail leaves these out otherwise
     request = messages.list(**kwargs)
     ids = []
     while request is not None and len(ids) < max_messages:
@@ -138,4 +141,9 @@ def fetch_label_map(service, query, max_messages, log=print):
         for message_id in _list_ids(service, query, max_messages, log, label_id):
             if message_id in folders:
                 folders[message_id].append(name)
+    # Mail marked as spam or deleted after it was synced drops out of the
+    # listings above; list those folders too, so stored copies are marked.
+    for label_id, name in SPAM_TRASH.items():
+        for message_id in _list_ids(service, query, max_messages, log, label_id):
+            folders[message_id] = [name]
     return folders

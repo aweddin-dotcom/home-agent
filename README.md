@@ -157,6 +157,7 @@ docs/network.md and docs/secrets.md.
 
 ## Docs
 
+- docs/tuning.md: commands and settings for checking on Home Agent and adjusting it
 - docs/digest.md: what the daily digest contains
 - docs/secrets.md: how credentials are stored and used
 - docs/network.md: remote access over Tailscale

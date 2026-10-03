@@ -148,3 +148,18 @@ def test_initials_and_sending_services_are_not_mismatches(sender):
 
 def test_brands_are_still_caught_through_sending_service_domains():
     assert level("PayPal Alerts <noreply@alerts-mailer.example>") == "phishing"
+
+
+def test_review_report_lists_flagged_senders(monkeypatch):
+    from services.common import senders
+
+    class FakeStore:
+        def emails_since(self, moment):
+            return [row("PayPal <service@paypa1-secure.example>", "a"), row("PayPal <service@paypa1-secure.example>", "b"),
+                    row("Jordan Lee <jordan@example.net>", "c")]
+
+    monkeypatch.setattr(senders, "_rules", lambda: CONFIG)
+    lines = []
+    senders.report(FakeStore(), 30, out=lines.append)
+    assert lines[0] == "Senders flagged in the last 30 days (level, name, domain, emails):"
+    assert len(lines) == 3 and "phishing" in lines[1] and "paypa1-secure.example" in lines[1] and lines[1].endswith(" 2")

@@ -17,7 +17,7 @@ services:
       - QDRANT__TELEMETRY_DISABLED=true
 
   open-webui:
-    image: ghcr.io/open-webui/open-webui:v0.11.4
+    image: ghcr.io/open-webui/open-webui:v0.12.0
     restart: unless-stopped
     volumes:
       - ./data/open-webui:/app/backend/data

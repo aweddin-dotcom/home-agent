@@ -1,0 +1,12 @@
+# Today's weather at the top of the morning digest, from Open-Meteo (free,
+# no account or key). Your location goes in .env, never here:
+#   WEATHER_LATITUDE=..., WEATHER_LONGITUDE=...
+# Nothing is fetched until both are set. Open-Meteo receives only the
+# location, rounded to about a kilometre.
+
+enabled: true
+url: https://api.open-meteo.com/v1/forecast
+units: fahrenheit      # or celsius (wind then in km/h)
+timeout_seconds: 15
+rain_threshold: 50     # % chance at which an hour counts as "rain likely"
+windy_above: 20        # mph (or km/h); stronger wind gets a mention

@@ -87,6 +87,12 @@ you've written them; the layout is assembled in code. Read it by asking the
 chat for "my digest". To build today's now: `python -m services.digest.build`
 (prints it; runs in the sync-worker container).
 
+The Today section starts with the day's weather from Open-Meteo (free, no
+account). Set `WEATHER_LATITUDE` and `WEATHER_LONGITUDE` in `.env` to turn
+it on; Open-Meteo receives only that location, rounded to about a
+kilometre, and the line is written in code from its forecast
+(`config/weather.yaml`).
+
 ### Investments (Portfolio Analyzer)
 
 Portfolio Analyzer (a separate app in `..\portfolio-analyzer`) owns the

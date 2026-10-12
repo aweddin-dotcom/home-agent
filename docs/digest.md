@@ -40,6 +40,8 @@ an event im registered for has changed schedule or been cancelled
 
 ### Today
 
+- The weather forecast: conditions, high and low, the hours rain is likely,
+  and strong wind (Open-Meteo, for the location in .env; config/weather.yaml)
 - Calendar events, in time order
 - For each meeting: one line of related context from recent email, if any
   ("last email from them was about the budget revision")

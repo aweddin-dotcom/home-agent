@@ -181,7 +181,8 @@ def _due_label(due, today):
     return f"{due:%b} {due.day}: "
 
 
-def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, investments=(), suspicious=()):
+def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, investments=(), suspicious=(),
+            weather=""):
     today = now.date()
     limits = config["max_items"]
     attention = sorted(
@@ -203,7 +204,7 @@ def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, in
         if len(attention) > limits["needs_attention"]:
             lines.append(f"- ...and {len(attention) - limits['needs_attention']} more")
         sections.append(("Needs your attention", lines))
-    today_lines = today_section(events, today, tz)
+    today_lines = ([weather] if weather else []) + today_section(events, today, tz)
     if today_lines:
         sections.append(("Today", today_lines))
     coming = coming_up_section(events, today, tz, limits["coming_up"])
@@ -241,9 +242,10 @@ def compose(now, sorted_emails, set_aside, events, tz, config, sync_problems, in
 
 
 def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=print, portfolio=None,
-          portfolio_config=None):
+          portfolio_config=None, weather=None, weather_config=None):
     """Sort the mail received since the previous digest, compose, and save.
-    `portfolio` (a Portfolio Analyzer client) adds the Investments section.
+    `portfolio` (a Portfolio Analyzer client) adds the Investments section;
+    `weather` (an OpenMeteo client) adds today's forecast.
     Returns the digest text."""
     previous = store.latest_digest()
     if previous and previous["day"] == now.date().isoformat():
@@ -287,7 +289,17 @@ def build(store, chat, config, now, tz, profile="", enabled_accounts=None, log=p
         investments, note = investment_lines(portfolio, chat, recent, now.date(), pconfig, log)
         if note:
             problems.append(note)
-    text = compose(now, sorted_emails, set_aside, store.all_events(), tz, config, problems, investments, suspicious)
+    forecast = ""
+    if weather is not None:
+        from services.weather.forecast import WeatherUnavailable, weather_line
+
+        wconfig = weather_config or {}
+        try:
+            forecast = weather_line(weather.today(), wconfig.get("rain_threshold", 50), wconfig.get("windy_above", 20))
+        except WeatherUnavailable:
+            problems.append("Weather forecast unavailable: Open-Meteo didn't answer")
+    text = compose(now, sorted_emails, set_aside, store.all_events(), tz, config, problems, investments, suspicious,
+                   forecast)
     store.save_digest(now.date(), text, since.astimezone(timezone.utc).isoformat(),
                       created_at=now.astimezone(timezone.utc).isoformat())
     return text
@@ -310,9 +322,11 @@ def build_from_settings(store, log=print):
     chat = OllamaChat(settings.OLLAMA_BASE_URL, model["chat"], num_ctx=model["chat_context_tokens"])
     tz = settings.TIMEZONE
     from services.portfolio.client import client_from_settings
+    from services.weather.forecast import client_from_settings as weather_client
 
     return build(store, chat, settings.digest(), datetime.now(tz), tz, settings.profile_text(),
-                 list(settings.accounts()), log, client_from_settings(), settings.load_config("portfolio.yaml"))
+                 list(settings.accounts()), log, client_from_settings(), settings.load_config("portfolio.yaml"),
+                 weather_client(), settings.load_config("weather.yaml"))
 
 
 def digest_due():

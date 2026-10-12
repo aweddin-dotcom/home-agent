@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime
 
-from services.retrieval.ask import answer_prompt, format_sources, gather
+from services.retrieval.ask import answer_prompt, format_sources, gather, unsupported_figures
 
 SOURCES_MARKER = "\n\n---\n"
 HISTORY_TURNS = 6
@@ -115,9 +115,18 @@ class Assistant:
             standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz, mail,
             self.portfolio, self.load_profile, self.load_discgolf, self.pong, self.web,
         )
-        yield from self.chat.stream(*answer_prompt(standalone, context, today))
+        answer = []
+        for piece in self.chat.stream(*answer_prompt(standalone, context, today)):
+            answer.append(piece)
+            yield piece
 
         footer = format_sources(context, self.tz)
+        if context.web_rows:
+            # Web answers: figures the model gave that no source states.
+            flagged = unsupported_figures("".join(answer), context, standalone)
+            if flagged:
+                footer = (f"⚠ Not found in the sources, check before relying on: {', '.join(flagged)}\n"
+                          + footer)
         if standalone != question:
             footer = f"Understood as: {standalone}\n{footer}"
         if self.status_notes:

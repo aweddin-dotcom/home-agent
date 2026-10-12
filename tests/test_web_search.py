@@ -190,3 +190,54 @@ def test_portfolio_and_web_together_cite_both():
     assert any(s.startswith("Web search results") for s in context.sections)
     system, _ = answer_prompt("q", context, TODAY)
     assert "web results like [W1]" in system and "Web search results [W1]" in system
+
+
+# Figures the model gives that no source states
+
+def web_context():
+    return gather("how has NWBX moved?", NoSearch(), None, RouterChat(web_route()), 5, [], TODAY, TZ,
+                  web=FakeWeb([{"title": "NWBX falls", "url": "https://news.example.com/a", "published": "2026-10-06",
+                                "snippet": "Shares fell 18% to $41.20 in Q4 trading, from $50.25 a week earlier."}]))
+
+
+def test_figures_from_the_sources_pass_and_invented_ones_are_flagged():
+    from services.retrieval.ask import unsupported_figures
+
+    context = web_context()
+    answer = ("Shares fell 18% [W1] from $50.25 to about $41 (2026-10-06) [W1]. It pays a 4% dividend yield, "
+              "and moved from $225 to $300, a -25% move.")
+    assert unsupported_figures(answer, context, "how has NWBX moved?") == ["4%", "$225", "$300", "25%"]
+
+
+def test_a_plain_number_in_the_sources_does_not_back_a_percentage():
+    from services.retrieval.ask import unsupported_figures
+
+    # "Q4" has a 4 in it, and so might a share count, but neither is a 4% yield.
+    assert unsupported_figures("A 4% yield.", web_context(), "q") == ["4%"]
+    assert unsupported_figures("Trading in Q4 was busy, over 2 weeks.", web_context(), "q") == []
+
+
+class AnswerChat(RouterChat):
+    def __init__(self, reply, answer):
+        super().__init__(reply)
+        self.answer = answer
+
+    def stream(self, system, user):
+        yield from self.answer
+
+
+def test_chat_footer_warns_about_unsupported_figures():
+    from services.agent.assistant import SOURCES_MARKER, Assistant
+
+    chat = AnswerChat(web_route(), ["Shares fell 18% [W1]. ", "It yields 4%."])
+    assistant = Assistant(chat, NoSearch(), None, lambda: [], TZ, today=TODAY, web=FakeWeb())
+    reply = "".join(assistant.respond([{"role": "user", "content": "why did NWBX drop?"}]))
+    answer, footer = reply.split(SOURCES_MARKER)
+    assert answer == "Shares fell 18% [W1]. It yields 4%."
+    assert footer.startswith("⚠ Not found in the sources, check before relying on: 4%\n")
+
+
+def test_web_prompt_asks_for_cited_figures_and_no_commentary():
+    system, _ = answer_prompt("q", web_context(), TODAY)
+    assert "only if a result" in system and "Never supply one from memory" in system
+    assert "is a rise" in system and "No general commentary" in system

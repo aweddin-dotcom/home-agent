@@ -94,7 +94,9 @@ the ones marked **restart** need `docker compose restart agent-api`.
 | `models.yaml` | The chat and embedding models per machine, and the context size (**restart**) | The Mac's model choice |
 | `portfolio.yaml` | Portfolio Analyzer address (**restart**), digest Investments limits, broker names for statement reminders | `stale_statement_days: 30` |
 | `pong.yaml` | Browser Pong address (**restart**) | |
-| `.env` (project folder) | `MODEL_PROFILE`, `HOME_AGENT_TIMEZONE`, `UDISC_PLAYER`, `PONG_URL`, `PORTFOLIO_URL` (apply with `python scripts/up.py`) | `PONG_URL` moved with the games to the iMac |
+| `web_search.yaml` | Web search on or off, and how many results feed an answer (`max_results`). Apply with `python scripts/up.py`, which starts or skips the search container | `enabled: true` |
+| `searxng/settings.yml` | SearXNG's own settings: which search engines it asks, safe search (apply with `docker compose restart searxng`) | |
+| `.env` (project folder) | `MODEL_PROFILE`, `HOME_AGENT_TIMEZONE`, `UDISC_PLAYER`, `PONG_URL`, `PORTFOLIO_URL`, `WEB_SEARCH_URL` (apply with `python scripts/up.py`) | `PONG_URL` moved with the games to the iMac |
 
 Your own notes and data, in `data/` (never committed):
 

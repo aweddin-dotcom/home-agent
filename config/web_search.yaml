@@ -1,0 +1,16 @@
+# Web search, for questions about the outside world: news, prices, why a
+# stock moved, opening hours. It runs through SearXNG, a search engine in its
+# own container (docker-compose.yml; its settings are in config/searxng/).
+#
+# Only the search query leaves this machine; SearXNG sends it on to public
+# search engines. Questions about your email, calendar, notes, or games are
+# never searched on the web (services/retrieval/router.py).
+
+# Off until you turn it on. After changing it, run scripts/up.py, which
+# starts the SearXNG container only while this is true.
+enabled: true
+# Containers reach SearXNG here. Override with WEB_SEARCH_URL.
+url: http://searxng:8080
+timeout_seconds: 15
+max_results: 6      # results given to the model with each question
+language: en

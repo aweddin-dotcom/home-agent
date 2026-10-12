@@ -67,6 +67,7 @@ Which container gets what:
 | `sync-worker` | `data/tokens/` (all approvals), `icloud_apple_id`, `icloud_app_password` | The only service that talks to Google, Microsoft, or Apple. Google and Microsoft approvals carry their own app credentials, so `google_client` and `microsoft_client_id` aren't mounted. |
 | `agent-api` | none | Reads the synced copy and the index only. |
 | `open-webui`, `qdrant` | none | |
+| `searxng` | none (its cookie-signing key is made fresh by `up.py` at each start) | Gets only search queries |
 
 On the Mac:
 

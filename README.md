@@ -121,6 +121,21 @@ standings worked out in code: wins, losses, win rate, head-to-head, and
 recent matches, with names matched the way the game matches them
 (capitalization doesn't matter). If the game isn't running, the answer says so.
 
+### Web search
+
+For questions about the outside world that change over time ("why did
+NWBX drop this month?", "what time does the hardware store close?"), chat
+can search the web through SearXNG, a search engine running in its own
+container that passes the query on to Google, Bing, DuckDuckGo and others.
+It's off until `enabled: true` in `config/web_search.yaml`; then run
+`python scripts/up.py`. The router sends a question to the web only when
+it isn't about your own mail, calendar, notes, or games, and the query is
+written from the question alone, with email addresses and long numbers
+removed, so nothing from your data is searched for. A question about
+something you own ("why did my NWBX shares drop?") gets both your
+portfolio and the web. Results are cited like [W1], with links under the
+answer.
+
 ### Chat in the browser
 
 Open WebUI (http://127.0.0.1:3000) offers the assistant as the model

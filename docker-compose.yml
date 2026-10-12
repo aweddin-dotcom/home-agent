@@ -16,6 +16,21 @@ services:
     environment:
       - QDRANT__TELEMETRY_DISABLED=true
 
+  # Web search for the assistant (config/web_search.yaml). Passes search
+  # queries on to public search engines; holds no personal data. In the
+  # "web" profile, so scripts/up.py starts it only while web search is on.
+  searxng:
+    image: searxng/searxng:2026.10.7-6671d89be
+    profiles: ["web"]
+    restart: unless-stopped
+    volumes:
+      - ./config/searxng/settings.yml:/etc/searxng/settings.yml:ro
+    ports:
+      - "127.0.0.1:8888:8080"
+    environment:
+      # Signs SearXNG's preference cookies; up.py makes a new one each start.
+      - SEARXNG_SECRET
+
   open-webui:
     image: ghcr.io/open-webui/open-webui:v0.12.0
     restart: unless-stopped

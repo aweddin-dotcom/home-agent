@@ -1,0 +1,21 @@
+# SearXNG settings (config/web_search.yaml turns web search on). Anything
+# not set here uses SearXNG's defaults. The secret key comes from
+# SEARXNG_SECRET, which scripts/up.py makes fresh at each start.
+use_default_settings: true
+
+general:
+  instance_name: "Home Agent search"
+  enable_metrics: false
+
+server:
+  # Only the assistant uses it, from 127.0.0.1 and the Docker network.
+  limiter: false
+  public_instance: false
+  image_proxy: false
+
+search:
+  safe_search: 1
+  # JSON is what the assistant reads.
+  formats:
+    - html
+    - json

@@ -1,5 +1,5 @@
-"""Decide which sources a question needs (email, calendar, or both) and which
-dates it's about.
+"""Decide which sources a question needs (email, calendar, the web, ...) and
+which dates it's about.
 
 The chat model does the interpretation, given a table of nearby dates so it
 doesn't have to do calendar arithmetic. Its reply is then validated, so a
@@ -10,7 +10,10 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "pong", "general")
+SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "pong", "web", "general")
+# Sources holding the user's own life. The web is never searched alongside
+# them, so nothing from them can end up in a search query.
+PERSONAL_SOURCES = {"email", "calendar", "profile", "disc_golf", "pong"}
 # What to search when the model's reply is unusable: the user's own data.
 DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
@@ -25,9 +28,11 @@ SCHEMA = {
         "mail_folder": {"type": ["string", "null"]},
         "about_purchases": {"type": "boolean"},
         "portfolio_news": {"type": "boolean"},
+        "web_query": {"type": ["string", "null"]},
+        "web_recent": {"type": "boolean"},
     },
     "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder", "about_purchases",
-                 "portfolio_news"],
+                 "portfolio_news", "web_query", "web_recent"],
 }
 
 SYSTEM_PROMPT = """You route questions about the user's email and calendar. Reply with JSON only.
@@ -56,10 +61,17 @@ sources: which to search.
   score on the red layout?", "how did I play last month?").
 - "pong" for the family's Browser Pong league: standings, records, who's
   best, head-to-head, recent matches ("who has the best Pong record?").
+- "web" for the outside world, when the answer is recent or changes:
+  news, current events, prices, why a stock or the market moved, sports
+  results, business hours, new releases ("why did MRNA drop this month?",
+  "what's the latest on the Artemis mission?"). Add "web" to "portfolio"
+  when the user asks why something they own moved. Never for the user's own
+  messages, schedule, plans, purchases, people, or games.
 - "general" alone, only for questions that clearly aren't about the user's
-  own messages, schedule, plans, purchases, people, accounts, or games: facts,
-  definitions, how-to, conversions, arithmetic ("how many ounces in a
-  cup?"). If it could be about the user's life, use email and calendar.
+  own messages, schedule, plans, purchases, people, accounts, or games, and
+  whose answer doesn't change: facts, definitions, how-to, conversions,
+  arithmetic ("how many ounces in a cup?"). If it could be about the user's
+  life, use email and calendar.
 
 start_date, end_date: the dates the question is about, as YYYY-MM-DD,
 inclusive. Copy them from the named ranges and date table; don't calculate.
@@ -88,7 +100,16 @@ or paid for: an order, delivery, shipment, package, return, refund,
 receipt, or charge ("when will my new boots arrive?"). Otherwise false.
 
 portfolio_news: true when the question asks for news or headlines about
-the user's investments or the market. Otherwise false."""
+the user's investments or the market. Otherwise false.
+
+web_query: when sources include "web", a short search engine query (under
+ten words) for the outside-world part of the question: the company,
+ticker, topic, or place it names, plus the month and year for recent
+events ("Moderna stock drop October 2026"). Never include the user's own
+details: people they know, addresses, account numbers. Otherwise null.
+
+web_recent: true when the web question is about recent news or events.
+Otherwise false."""
 
 
 @dataclass
@@ -100,6 +121,8 @@ class Route:
     folder: str = None
     purchases: bool = False  # about something the user bought: orders, deliveries, receipts
     news: bool = False  # wants news about their investments
+    web_query: str = None  # what to search the web for, written from the question only
+    web_recent: bool = False  # about recent news or events
 
 
 def named_ranges(today):
@@ -203,8 +226,13 @@ def validate(raw):
         sources = [s for s in sources if s != "general"]
         if "email" not in sources:
             sources.append("email")
+    if "web" in sources and (set(sources) & PERSONAL_SOURCES or folder or purchases):
+        sources.remove("web")  # never search the web for anything about the user's own life
+    web_query = data.get("web_query")
+    web_query = " ".join(web_query.split()) if "web" in sources and isinstance(web_query, str) else None
     return Route(sources=sources or list(DEFAULT_SOURCES), start=start, end=end, keywords=keywords, folder=folder,
-                 purchases=purchases, news=news)
+                 purchases=purchases, news=news, web_query=web_query or None,
+                 web_recent="web" in sources and data.get("web_recent") is True)
 
 
 def route(question, chat, today):

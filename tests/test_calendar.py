@@ -78,7 +78,7 @@ def test_validate_good_reply():
     [
         ("not json", Route()),
         ('{"sources": []}', Route()),
-        ('{"sources": ["weather"]}', Route()),
+        ('{"sources": ["horoscope"]}', Route()),
         ('{"sources": ["email"], "start_date": "tomorrow"}', Route(sources=["email"])),
     ],
 )

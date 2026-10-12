@@ -55,6 +55,9 @@ Today is {today}.
   Lower scores are better; higher ratings are better. A rating is not a
   score. Mention that the stats run through the date the export was saved.
   Disc golf stats have no citation numbers; don't add any.
+- The weather forecast comes from Open-Meteo, already put in words for
+  each day: use its figures exactly as given and say which place it's for.
+  It has no citation numbers; don't add any.
 - Browser Pong standings come from the family's Pong league and are
   already worked out: the leader is whoever is first on the leaderboard.
   Use the records exactly as given; a light, playful tone is fine. They
@@ -136,6 +139,7 @@ class Context:
     web: str = ""  # "used", "unavailable", "off", or "" when not asked
     web_query: str = ""  # what was sent to the search engines
     web_rows: list = field(default_factory=list)
+    weather: str = ""  # what the forecast covered, "unavailable", "off", or "" when not asked
 
 
 @dataclass
@@ -424,10 +428,62 @@ def add_web(context, web, question):
     context.sections.append(format_web(query, results) if results else f'Web search for "{query}" found nothing.')
 
 
+# Words that only mean the weather ("forecast" alone could be earnings).
+WEATHER = re.compile(r"\b(weather|umbrella|rain(ing|y)?|snow(ing|y)?)\b", re.I)
+WEATHER_DAYS = 7  # at most, when the question names a range
+
+
+def weather_days(route, today):
+    """The days a weather question is about: the dates asked about when
+    they're within the forecast, otherwise today and tomorrow."""
+    from services.weather.forecast import MAX_DAYS
+
+    last_day = today + timedelta(days=MAX_DAYS - 1)
+    if route.start and today <= route.start <= last_day:
+        return route.start, min(route.end or route.start, route.start + timedelta(days=WEATHER_DAYS - 1), last_day)
+    return today, today + timedelta(days=1)
+
+
+def add_weather(context, weather, today):
+    """The forecast from Open-Meteo, for home or a place named in the question."""
+    from services.weather.forecast import PlaceNotFound, WeatherUnavailable, describe
+
+    if weather is None:
+        context.weather = "off"
+        context.sections.append("Weather: not set up (WEATHER_LATITUDE and WEATHER_LONGITUDE in .env).")
+        return
+    first, last = weather_days(context.route, today)
+    place = context.route.weather_place
+    try:
+        if place:
+            latitude, longitude, timezone, label = weather.locate(place)
+            days = weather.days((last - today).days + 1, latitude, longitude, timezone)
+        else:
+            label = "the user's home"
+            days = weather.days((last - today).days + 1)
+    except PlaceNotFound:
+        context.weather = "unavailable"
+        context.sections.append(f'Weather: Open-Meteo doesn\'t know a place called "{place}".')
+        return
+    except WeatherUnavailable:
+        context.weather = "unavailable"
+        context.sections.append("Weather: Open-Meteo didn't answer, so there's no forecast right now.")
+        return
+    days = [d for d in days if first <= d["date"] <= last]
+    lines = [f"Weather forecast from Open-Meteo for {label}:"]
+    lines.extend(f"- {d['date']:%a %b} {d['date'].day}: {describe(d)}" for d in days)
+    if not days:
+        lines.append("- No forecast for those dates (Open-Meteo forecasts about two weeks ahead).")
+    context.sections.append("\n".join(lines))
+    span = f"{first:%b} {first.day}" + (f" to {last:%b} {last.day}" if last != first else "")
+    context.weather = f"Open-Meteo forecast for {label if place else 'your home'}, {span}"
+
+
 def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None, portfolio=None,
-           profile=None, discgolf=None, pong=None, web=None):
+           profile=None, discgolf=None, pong=None, web=None, weather=None):
     """`mail` (a Store) adds folder names, folder and date listings; optional.
-    `web` (a WebSearch) is None when web search is off."""
+    `web` (a WebSearch) is None when web search is off; `weather` (an
+    OpenMeteo client) is None when no home location is set."""
     chosen = route(question, chat, today)
     context = Context(chosen)
     if discgolf is not None and "disc_golf" not in chosen.sources:
@@ -443,6 +499,9 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None,
             chosen.sources = [s for s in chosen.sources if s != "general"] + ["disc_golf"]
     if PONG.search(question) and "pong" not in chosen.sources:
         chosen.sources = [s for s in chosen.sources if s != "general"] + ["pong"]
+    if WEATHER.search(question) and set(chosen.sources) <= {"general", "web"}:
+        # A small router can send "what's the forecast?" to the web.
+        chosen.sources = ["weather"]
     if "web" in chosen.sources and (set(chosen.sources) & PERSONAL_SOURCES or web is None):
         # Off, or a personal source was added above: answer without the web.
         context.web = "off" if web is None and not set(chosen.sources) & PERSONAL_SOURCES else ""
@@ -451,7 +510,9 @@ def gather(question, embedder, index, chat, top_k, events, today, tz, mail=None,
         add_pong(context, pong)
     if "disc_golf" in chosen.sources:
         add_discgolf(context, discgolf, question)
-    if chosen.sources and set(chosen.sources) <= {"disc_golf", "pong"}:
+    if "weather" in chosen.sources:
+        add_weather(context, weather, today)
+    if chosen.sources and set(chosen.sources) <= {"disc_golf", "pong", "weather"}:
         return context
     if chosen.sources == ["general"]:
         return context  # answered from the model's own knowledge; nothing to look up
@@ -632,6 +693,9 @@ def format_sources(context, tz):
                                              else context.discgolf))
     if context.pong:
         lines.append("Browser Pong: " + ("not available" if context.pong == "unavailable" else context.pong))
+    if context.weather:
+        lines.append("Weather: " + {"off": "not set up (location in .env)", "unavailable": "not available"}.get(
+            context.weather, context.weather))
     if context.web == "off":
         lines.append("Web search: off (config/web_search.yaml)")
     elif context.web:
@@ -696,10 +760,12 @@ def main():
     top_k = settings.retrieval()["search"]["top_k"]
     from services.pong.standings import client_from_settings as pong_client
     from services.portfolio.client import client_from_settings
+    from services.weather.forecast import client_from_settings as weather_client
     from services.websearch.client import client_from_settings as web_client
 
     context = gather(question, embedder, index, chat, top_k, store.all_events(), today, tz, store,
-                     client_from_settings(), settings.profile_text, settings.discgolf, pong_client(), web_client())
+                     client_from_settings(), settings.profile_text, settings.discgolf, pong_client(), web_client(),
+                     weather_client())
     print(chat.complete(*answer_prompt(question, context, today)))
     print()
     print(format_sources(context, tz))

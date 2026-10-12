@@ -10,10 +10,10 @@ import json
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
-SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "pong", "web", "general")
+SOURCES = ("email", "calendar", "portfolio", "profile", "disc_golf", "pong", "weather", "web", "general")
 # Sources holding the user's own life. The web is never searched alongside
 # them, so nothing from them can end up in a search query.
-PERSONAL_SOURCES = {"email", "calendar", "profile", "disc_golf", "pong"}
+PERSONAL_SOURCES = {"email", "calendar", "profile", "disc_golf", "pong", "weather"}
 # What to search when the model's reply is unusable: the user's own data.
 DEFAULT_SOURCES = ("email", "calendar")
 MAX_RANGE_DAYS = 400
@@ -30,9 +30,10 @@ SCHEMA = {
         "portfolio_news": {"type": "boolean"},
         "web_query": {"type": ["string", "null"]},
         "web_recent": {"type": "boolean"},
+        "weather_place": {"type": ["string", "null"]},
     },
     "required": ["sources", "start_date", "end_date", "calendar_keywords", "mail_folder", "about_purchases",
-                 "portfolio_news", "web_query", "web_recent"],
+                 "portfolio_news", "web_query", "web_recent", "weather_place"],
 }
 
 SYSTEM_PROMPT = """You route questions about the user's email and calendar. Reply with JSON only.
@@ -61,6 +62,11 @@ sources: which to search.
   score on the red layout?", "how did I play last month?").
 - "pong" for the family's Browser Pong league: standings, records, who's
   best, head-to-head, recent matches ("who has the best Pong record?").
+- "weather" for the weather: forecasts, temperature, rain, snow, wind,
+  whether to bring an umbrella or a jacket ("will it rain Saturday?",
+  "what's the weather in Boston tomorrow?"). Add "calendar" when the
+  question is about the weather for one of the user's plans ("will it rain
+  for my soccer game?").
 - "web" for the outside world, when the answer is recent or changes:
   news, current events, prices, why a stock or the market moved, sports
   results, business hours, new releases ("why did MRNA drop this month?",
@@ -109,7 +115,11 @@ events ("Moderna stock drop October 2026"). Never include the user's own
 details: people they know, addresses, account numbers. Otherwise null.
 
 web_recent: true when the web question is about recent news or events.
-Otherwise false."""
+Otherwise false.
+
+weather_place: when a weather question names a place other than the
+user's home ("in Boston", "at the beach in Cape May"), that place as a town
+or city name ("Boston", "Cape May"). Otherwise null."""
 
 
 @dataclass
@@ -123,6 +133,7 @@ class Route:
     news: bool = False  # wants news about their investments
     web_query: str = None  # what to search the web for, written from the question only
     web_recent: bool = False  # about recent news or events
+    weather_place: str = None  # a place named in a weather question; None means home
 
 
 def named_ranges(today):
@@ -232,7 +243,13 @@ def validate(raw):
     web_query = " ".join(web_query.split()) if "web" in sources and isinstance(web_query, str) else None
     return Route(sources=sources or list(DEFAULT_SOURCES), start=start, end=end, keywords=keywords, folder=folder,
                  purchases=purchases, news=news, web_query=web_query or None,
-                 web_recent="web" in sources and data.get("web_recent") is True)
+                 web_recent="web" in sources and data.get("web_recent") is True,
+                 weather_place=_place(data.get("weather_place")) if "weather" in sources else None)
+
+
+def _place(value):
+    value = " ".join(value.split()) if isinstance(value, str) else ""
+    return value if value and value.lower() not in ("home", "here", "null", "none") else None
 
 
 def route(question, chat, today):

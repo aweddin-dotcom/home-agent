@@ -79,6 +79,7 @@ class Assistant:
     load_discgolf: object = None  # callable returning the user's UDisc scorecards, or None
     pong: object = None  # Browser Pong client, for league standings
     web: object = None  # WebSearch client, or None when web search is off
+    weather: object = None  # Open-Meteo client, or None when no home location is set
 
     def condense(self, question, history):
         if not history:
@@ -113,7 +114,7 @@ class Assistant:
         mail = self.open_mail() if self.open_mail else None
         context = gather(
             standalone, self.embedder, self.index, self.chat, self.top_k, self.load_events(), today, self.tz, mail,
-            self.portfolio, self.load_profile, self.load_discgolf, self.pong, self.web,
+            self.portfolio, self.load_profile, self.load_discgolf, self.pong, self.web, self.weather,
         )
         answer = []
         for piece in self.chat.stream(*answer_prompt(standalone, context, today)):

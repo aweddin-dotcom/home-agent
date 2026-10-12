@@ -91,7 +91,10 @@ The Today section starts with the day's weather from Open-Meteo (free, no
 account). Set `WEATHER_LATITUDE` and `WEATHER_LONGITUDE` in `.env` to turn
 it on; Open-Meteo receives only that location, rounded to about a
 kilometre, and the line is written in code from its forecast
-(`config/weather.yaml`).
+(`config/weather.yaml`). Chat answers weather questions the same way
+("will it rain this weekend?"), for the dates asked about up to two weeks
+ahead, or today and tomorrow. A place named in the question ("weather in
+Boston tomorrow?") is looked up by name with Open-Meteo's geocoding.
 
 ### Investments (Portfolio Analyzer)
 

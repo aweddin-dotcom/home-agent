@@ -26,6 +26,7 @@ def assistant_from_settings():
 
     from services.pong.standings import client_from_settings as pong_client
     from services.portfolio.client import client_from_settings
+    from services.weather.forecast import client_from_settings as weather_client
     from services.websearch.client import client_from_settings as web_client
 
     from .assistant import Assistant
@@ -44,6 +45,7 @@ def assistant_from_settings():
         load_discgolf=settings.discgolf,
         pong=pong_client(),
         web=web_client(),
+        weather=weather_client(),
         status_notes=lambda: sync_notes(
             Store(settings.STRUCTURED_DB, readonly=True).sync_statuses(),
             list(settings.accounts()),
